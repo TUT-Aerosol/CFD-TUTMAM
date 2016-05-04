@@ -1,0 +1,25 @@
+de/ud/cf/compile tutmamudf
+yes
+tutmam.c
+tutmam_nucleation.c
+tutmam_condensation.c
+tutmam_coagulation.c
+tutmam_diffusion.c
+tutmam_func.c
+tutmam_material_func.c
+tutmam_settings.c
+tutmam_alpha_d_interpolation.c
+tutmam_transfer_pl2ln.c
+tutmam_wall_condensation.c
+
+tutmam_nucleation.h
+tutmam_condensation.h
+tutmam_coagulation.h
+tutmam_constants.h
+tutmam_diffusion.h
+tutmam_func.h
+tutmam_material_func.h
+tutmam_settings.h
+tutmam_alpha_d_interpolation.h
+tutmam_transfer_pl2ln.h
+tutmam_wall_condensation.h
