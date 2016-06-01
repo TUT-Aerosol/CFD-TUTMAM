@@ -108,6 +108,9 @@
 	/* factor for Gauss-Olin quadrature */
 	real quadrature_factor_olin(real cc);
 	
+	/* density function for power law distribution (dimensionless) */
+	real powerlaw_density(real alpha, real d2, real dp);
+	
 	/* k-th order of the moment is defined by UDS id */
 	real k_moment(int iUds);
 	

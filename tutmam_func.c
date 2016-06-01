@@ -711,6 +711,21 @@ real quadrature_factor_olin(real cc) {
 	}
 }
 
+/* density function for power law distribution (dimensionless) */
+real powerlaw_density(real alpha, real d2, real dp) {
+	real d = d2/powerLawD1;
+	
+	if (d-1.0 < 1.0e-3 || dp < powerLawD1 || dp > d2) {
+		return 0.0;
+	}
+	
+	if (fabs(alpha) < whenAlphaIsZero) {
+		return 1.0/log(d);
+	}
+	
+	return alpha/(pow(d2/dp,alpha)-pow(powerLawD1/dp,alpha));
+}
+
 /* k-th order of the moment is defined by UDS id */
 real k_moment(int iUds) {
 	switch(iUds % nUdsPerMode) {
@@ -944,17 +959,62 @@ void tutmam_transfer_settings_general_settings() {
 	/* setting the values of C-code varibles to the values of RP-variables */	
 	fluidZoneNumber = RP_Get_Integer("fluid_zone_number_rp");
 	gaussHermiteLevel = RP_Get_Integer("gauss_hermite_level_rp");
+	condensationIntegrationLevel = RP_Get_Integer("condensation_integration_level_rp");
+	condensationIntegrationBins = RP_Get_Integer("condensation_integration_bins_rp");
+	coagulationIntegrationLevel = RP_Get_Integer("coagulation_integration_level_rp");
+	coagulationIntegrationBins = RP_Get_Integer("coagulation_integration_bins_rp");
 	
 	Message("\n");
-	Message("Fluid zone ID:              %d\n",fluidZoneNumber);
-	Message("Gauss-Hermite quad. level:  %d\n",gaussHermiteLevel);
+	Message("Fluid zone ID:                %d\n",fluidZoneNumber);
+	Message("Gauss-Hermite quad. level:    %d\n",gaussHermiteLevel);
+	
+	#if powerLawDistribution > -1
+		Message("Integration for condensation:\n    ");
+		switch(condensationIntegrationLevel) {
+			case 1:
+				Message("Gauss-Olin");
+				break;
+				
+			case 2:
+				Message("Gauss-Olin when alpha > 0.5\n    Numeric (%d bins) when alpha < 0.5",condensationIntegrationBins);
+				break;
+				
+			case 3:
+				Message("Numeric (%d bins)",condensationIntegrationBins);
+				break;
+				
+			default:
+				Message("Unknown condensationIntegrationLevel");
+		}
+		Message("\n");
+		
+		Message("Integration for coagulation:\n    ");
+		switch(coagulationIntegrationLevel) {
+			case 1:
+				Message("Gauss-Olin");
+				break;
+				
+			case 2:
+				Message("Gauss-Olin when D2/D1 < 3\n    Numeric (%d bins) when D2/D1 > 3",coagulationIntegrationBins);
+				break;
+				
+			case 3:
+				Message("Numeric (%d bins)",coagulationIntegrationBins);
+				break;
+				
+			default:
+				Message("Unknown coagulationIntegrationLevel");
+		}
+		Message("\n");
+	#endif
+			
 	
 #endif
 
 #if PARALLEL /* parallel solver */
 
 	/* setting the C-code variables from host process to node processes */
-	host_to_node_int_2(fluidZoneNumber,gaussHermiteLevel);
+	host_to_node_int_6(fluidZoneNumber,gaussHermiteLevel,condensationIntegrationLevel,condensationIntegrationBins,coagulationIntegrationLevel,coagulationIntegrationBins);
 	
 #endif
 

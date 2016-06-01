@@ -172,6 +172,10 @@
 	extern real particleTurbSchmidtNumber;		/* turbulent Schmidt number for particles */
 	
 	extern int gaussHermiteLevel;				/* Gauss-Hermite quadrature level (5, 7, 9, or 11) */
+	extern int condensationIntegrationLevel;			/* integration level for condensation */
+	extern int condensationIntegrationBins;			/* integration bins for condensation */
+	extern int coagulationIntegrationLevel;			/* integration level for coagulation */
+	extern int coagulationIntegrationBins;			/* integration bins for coagulation */
 
 	extern real minGSD;							/* Minimum value for GSD. 1 causes division by zero; therefore, over 1 is required. */
 	extern real maxGSD;							/* Maximum value for GSD. */
