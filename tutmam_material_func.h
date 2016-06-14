@@ -21,7 +21,7 @@
 	real sulfuric_acid_water_density(real temp, const real *massFractionsInPhase);
 	
 	/* Diffusion coefficient of a gas iFluentSpecies in air (m^2/s) */
-	real diffusion_coefficient_gas(real temp, real pressure, int iFluentSpecies);
+	real diffusion_coefficient_gas(real temp, real pressure, int iFluentSpecies, real relativeHumidity);
 	
 	/* Latent heat of condensation of iSpecies (J/kg) */
 	real latent_heat(int iSpecies);

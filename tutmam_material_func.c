@@ -86,21 +86,24 @@ real sulfuric_acid_water_density(real temp, const real *massFractionsInPhase) {
 /* Diffusion coefficient of a gas iFluentSpecies in air (m^2/s) */
 /* You can change the function definition. */
 /* You can use this also in Fluent by choosing diff_gas for UDF in Fluent materials panel. */
-real diffusion_coefficient_gas(real temp, real pressure, int iFluentSpecies) {
+real diffusion_coefficient_gas(real temp, real pressure, int iFluentSpecies, real relativeHumidity) {
 	real diffCoeff;		/* laminar diffusion coefficient (m^2/s) */
 
 	switch(iFluentSpecies) {
 		case 0 :
-			diffCoeff = -1.8832e-6 + 2.3024e-8*temp + 2.2366e-11*temp*temp; /* h2so4 */
-			break;
+			/* h2so4, no rh dependence */
+			/* diffCoeff = -1.8832e-6 + 2.3024e-8*temp + 2.2366e-11*temp*temp;  */
 			
+			/* h2so4, rh dependence */
+			diffCoeff = 1.8e-9*pow(temp,1.5)/(1.0+0.2876*pow(tutmam_limits(0.0,relativeHumidity,3.0),0.5643)); 
+			break;
 			
 		case 1 :
 			diffCoeff = -6.8158e-6 + 8.333e-8*temp + 8.0949e-11*temp*temp; /* h2o */
 			break;
 			
 		case 2 :
-			diffCoeff = 28./29.*(-6.6432e-6 + 7.3884e-8*temp + 7.1773e-11*temp*temp); /* air */
+			diffCoeff = -6.4141e-6 + 7.1336e-8*temp + 6.9298e-11*temp*temp; /* air */
 			break;
 
 		default :

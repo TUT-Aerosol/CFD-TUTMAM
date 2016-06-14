@@ -162,6 +162,9 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	real kappa = 0.0;								/* kappa in water-equilibrium calculation */
 	real condensationMultiplier = 0.0;				/* water condensation multiplier */
 	int iFluentSpeciesWater = -1;					/* Fluent species ID for water */
+	int iFluentSpeciesSulfuricAcid = -1;			/* Fluent species ID for sulfuric acid */
+	int iSpeciesWater = -1;							/* species ID for water */
+	real relativeHumidity;							/* rh */
 	
 	ntot = C_NTOT(c,t,powerLawDistribution);
 	rhoP = C_R_PARTICLE(c,t,powerLawDistribution);
@@ -185,13 +188,17 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 		tempParticle = tempFluid;
 	}
 	
-	if (waterEq == 1) { /* if water-equilibrium calculation is used */
+	if (waterEq == 1 || iFluentSpeciesSulfuricAcid > -1) { /* if water-equilibrium calculation is on, or if h2so4 exists */
 		iFluentSpeciesWater = SV_SpeciesIndex("h2o"); /* find water ID in Fluent */
 		if (iFluentSpeciesWater == -1) {
 			Error("h2o not found! Switch water equilibrium calculation off.\n");
 			return;
 		}
 		
+		iSpeciesWater = tutmamSpeciesIdVector[iFluentSpeciesWater];
+	}
+		
+	if (waterEq == 1) {/* if water-equilibrium calculation is on */
 		kappa = C_WATER_KAPPA(c,t,powerLawDistribution);
 		condensationMultiplier = condensation_multiplier(c,t,powerLawDistribution);
 	}
@@ -202,6 +209,12 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 		}
 	}
 	
+	/* calculate rh only when sulfuric acid exists */
+	iFluentSpeciesSulfuricAcid = SV_SpeciesIndex("h2so4"); 
+	if (iFluentSpeciesSulfuricAcid > -1) {
+		relativeHumidity = pressure*C_XI(c,t,iSpeciesWater)/saturation_vapor_pressure(tempFluid,iSpeciesWater);
+	}
+	
 	for (iSpecies = 0; iSpecies < nTutmamSpecies; ++iSpecies) {
 		if (iCondensingSpecies[iSpecies] == 1) { /* is it condensing */
 			if (waterEq == 0 || fluentSpeciesIdVector[iSpecies] != iFluentSpeciesWater) { /* skip if water */
@@ -210,7 +223,7 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 				dMolecule = molecule_diameter(iSpecies);
 				mParticle = TUTMAM_PI6*rhoP*CBC(D2);
 				iFluentSpecies = fluentSpeciesIdVector[iSpecies];
-				diffCoeffGas = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies);
+				diffCoeffGas = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies,relativeHumidity);
 				diffCoeffParticle = diff_dep(c,t,D2)*diff_indep(c,t);
 				fuchsSutuginForMass = fuchs_sutugin_for_mass(D2,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
 				moleFractionInFluid = C_XI(c,t,iSpecies);

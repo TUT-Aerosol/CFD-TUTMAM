@@ -110,9 +110,11 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 	real kelvinDiameter = 0.0;	/* Kelvin diameter (m) */
 	
 	int iFluentSpeciesWater = -1;
+	int iFluentSpeciesSulfuricAcid = -1;
 	int iSpeciesWater = -1;
 	real kappa = 0.0;
 	real condensationMultiplier = 0.0;
+	real relativeHumidity;
 	
 	real moleFractionsInPhase[nTutmamSpecies];	/* mole fractions of all species in a phase */
 	real massFractionsInPhase[nTutmamSpecies];	/* mass fractions of all species in a phase */
@@ -145,7 +147,8 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 		quadratureFactor = 1.0/TUTMAM_SQRTPI;
 	}
 		
-	if (waterEq == 1) { /* if water-equilibrium calculation is on */
+	iFluentSpeciesSulfuricAcid = SV_SpeciesIndex("h2so4"); 	
+	if (waterEq == 1 || iFluentSpeciesSulfuricAcid > -1) { /* if water-equilibrium calculation is on, or if h2so4 exists */
 	
 		/* find Fluent species ID for water */
 		iFluentSpeciesWater = SV_SpeciesIndex("h2o");
@@ -155,6 +158,10 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 		}
 		
 		iSpeciesWater = tutmamSpeciesIdVector[iFluentSpeciesWater];
+		
+	}
+	
+	if (waterEq == 1) {/* if water-equilibrium calculation is on */
 		condensationMultiplier = condensation_multiplier(c,t,j);
 		kappa = C_WATER_KAPPA(c,t,j);
 	}
@@ -173,6 +180,11 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 		for (ph = 0; ph < nTutmamPhases; ++ph) {			
 			volumeFractionsInParticle[ph] = C_VPH_PARTICLE(c,t,ph,j);
 		}
+	}
+	
+	/* calculate rh only when sulfuric acid exists */
+	if (iFluentSpeciesSulfuricAcid > -1) {
+		relativeHumidity = pressure*C_XI(c,t,iSpeciesWater)/saturation_vapor_pressure(tempFluid,iSpeciesWater);
 	}
 
 	
@@ -193,7 +205,8 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 				moleFractionInFluid = C_XI(c,t,iSpecies);
 				dMolecule = molecule_diameter(iSpecies);
 				iFluentSpecies = fluentSpeciesIdVector[iSpecies];
-				diffCoeffGas = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies);
+				diffCoeffGas = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies,relativeHumidity);
+				
 				actCoeff = activity_coefficient(tempParticle,iSpecies,moleFractionsInPhase);
 				
 				if (phaseActivityModel == 1) {

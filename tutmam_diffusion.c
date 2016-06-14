@@ -241,12 +241,29 @@ DEFINE_DIFFUSIVITY(diff_uds,c,t,i)
 /* This is the macro for gas laminar diffusion coefficient, which can be seen in Fluent GUI. */
 DEFINE_DIFFUSIVITY(diff_gas,c,t,iFluentSpecies)
 {	
-	real temp;	 	/* temperature (K) */
-	real pressure;	/* total pressure (Pa) */
+	real temp;	 						/* temperature (K) */
+	real pressure;						/* total pressure (Pa) */
+	real relativeHumidity = 0.0; 		/* relative humidity */
+	int iFluentSpeciesSulfuricAcid = -1;/* Fluent ID for sulfuric acid */
+	int iFluentSpeciesWater;			/* Fluent ID for water */
+	int iSpeciesWater;					/* ID for water */
 	
 	temp = C_T(c,t);
 	pressure = C_P_TOT(c,t);
 	
-	return diffusion_coefficient_gas(temp,pressure,iFluentSpecies); /* (m^2/s) */
+	/* calculate rh only when sulfuric acid is in iFluentSpecies */
+	iFluentSpeciesSulfuricAcid = SV_SpeciesIndex("h2so4"); 
+	if (iFluentSpeciesSulfuricAcid == iFluentSpecies) {
+		
+		iFluentSpeciesWater = SV_SpeciesIndex("h2o"); 
+		if (iFluentSpeciesWater == -1) {
+			Error("h2o not found");
+		}
+		
+		iSpeciesWater = tutmamSpeciesIdVector[iFluentSpeciesWater];
+		relativeHumidity = pressure*C_XI(c,t,iSpeciesWater)/saturation_vapor_pressure(temp,iSpeciesWater);
+	}
+	
+	return diffusion_coefficient_gas(temp,pressure,iFluentSpecies,relativeHumidity); /* (m^2/s) */
 }
 
