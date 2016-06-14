@@ -37,21 +37,33 @@
 ;;Setting default values for the RP-variables, if they are not defined.
 (if (not (rp-var-object 'fluid_zone_number_rp))(rp-var-define 'fluid_zone_number_rp 1 'int #f))
 (if (not (rp-var-object 'gauss_hermite_level_rp))(rp-var-define 'gauss_hermite_level_rp 7 'int #f))
+(if (not (rp-var-object 'condensation_integration_level_rp))(rp-var-define 'condensation_integration_level_rp 1 'int #f))
+(if (not (rp-var-object 'condensation_integration_bins_rp))(rp-var-define 'condensation_integration_bins_rp 200 'int #f))
+(if (not (rp-var-object 'coagulation_integration_level_rp))(rp-var-define 'coagulation_integration_level_rp 1 'int #f))
+(if (not (rp-var-object 'coagulation_integration_bins_rp))(rp-var-define 'coagulation_integration_bins_rp 20 'int #f))
 ;;
 (define  gui-gen-sett
-(let ((panel #f)(fluidZoneNumber)(gaussHermiteLevel)) ;;Declaring the scheme-variables
+(let ((panel #f)(fluidZoneNumber)(gaussHermiteLevel)(condensationIntegrationLevel)(condensationIntegrationBins)(coagulationIntegrationLevel)(coagulationIntegrationBins)) ;;Declaring the scheme-variables
 (define (update-cb . args) ;;Update: setting the values of scheme-variables to the values of RP-variables
 (cx-set-integer-entry fluidZoneNumber (%rpgetvar 'fluid_zone_number_rp))      
 (cx-set-integer-entry gaussHermiteLevel (%rpgetvar 'gauss_hermite_level_rp))
+(cx-set-integer-entry condensationIntegrationLevel (%rpgetvar 'condensation_integration_level_rp))
+(cx-set-integer-entry condensationIntegrationBins (%rpgetvar 'condensation_integration_bins_rp))
+(cx-set-integer-entry coagulationIntegrationLevel (%rpgetvar 'coagulation_integration_level_rp))
+(cx-set-integer-entry coagulationIntegrationBins (%rpgetvar 'coagulation_integration_bins_rp))
   )    
 (define (apply-cb . args) ;;Apply: setting the values of RP-variables to the values of scheme-variables 
 (rpsetvar 'fluid_zone_number_rp (cx-show-integer-entry fluidZoneNumber)) 
 (rpsetvar 'gauss_hermite_level_rp (cx-show-integer-entry gaussHermiteLevel)) 
+(rpsetvar 'condensation_integration_level_rp (cx-show-integer-entry condensationIntegrationLevel)) 
+(rpsetvar 'condensation_integration_bins_rp (cx-show-integer-entry condensationIntegrationBins)) 
+(rpsetvar 'coagulation_integration_level_rp (cx-show-integer-entry coagulationIntegrationLevel)) 
+(rpsetvar 'coagulation_integration_bins_rp (cx-show-integer-entry coagulationIntegrationBins)) 
 (%udf-on-demand "tutmam_transfer_settings_manually_general_settings::tutmamudf") ;;Settings are transferred to C-code
    )    
 (lambda args  
 (if (not panel) 
-(let ((table) (form)) ;;Creating the GUI panel. Scheme variables are connected to panel entries.
+(let ((table)(table2) (form)) ;;Creating the GUI panel. Scheme variables are connected to panel entries.
 (set! panel (cx-create-panel "General settings" apply-cb update-cb))    
 (set! table (cx-create-table panel "" 'border #f 'below 0 'right-of 0))
 (set! form (cx-create-frame table "" 'border #f))
@@ -61,6 +73,31 @@
 	))
 (set! fluidZoneNumber (cx-create-integer-entry table "Fluid zone ID" 'width 14 'row 2 'col 0 ))
 (set! gaussHermiteLevel (cx-create-integer-entry table "Gauss-Hermite quad. level" 'width 14 'row 3 'col 0 ))
+(set! table2 (cx-create-table panel "Only if using power-law distribution" 'border #t 'below table 'right-of 0))
+(set! condensationIntegrationLevel (cx-create-integer-entry table2 "Integration level for condensation" 'width 14 'row 1 'col 0 'activate-callback
+	(lambda ()
+		(if (> (cx-show-integer-entry condensationIntegrationLevel) 1)
+		(cx-show-item condensationIntegrationBins)
+		(cx-hide-item condensationIntegrationBins)
+	))
+))
+(set! condensationIntegrationBins (cx-create-integer-entry table2 "Integration bins for condensation" 'width 14 'row 2 'col 0 ))
+(set! coagulationIntegrationLevel (cx-create-integer-entry table2 "Integration level for coagulation" 'width 14 'row 3 'col 0 'activate-callback
+	(lambda ()
+		(if (> (cx-show-integer-entry coagulationIntegrationLevel) 1)
+		(cx-show-item coagulationIntegrationBins)
+		(cx-hide-item coagulationIntegrationBins)
+	))
+))
+(set! coagulationIntegrationBins (cx-create-integer-entry table2 "Integration bins for coagulation" 'width 14 'row 4 'col 0 ))
+(if (> (%rpgetvar 'condensation_integration_level_rp) 1)
+	(cx-show-item condensationIntegrationBins)
+	(cx-hide-item condensationIntegrationBins)
+)
+(if (> (%rpgetvar 'coagulation_integration_level_rp) 1)
+	(cx-show-item coagulationIntegrationBins)
+	(cx-hide-item coagulationIntegrationBins)
+)
 (cx-create-button panel "Apply" 'panel-button #t 'activate-callback apply-cb)
 )  
 ) (cx-show-panel panel)    )))

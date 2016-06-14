@@ -118,6 +118,8 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 	real massFractionsInPhase[nTutmamSpecies];	/* mass fractions of all species in a phase */
 	real volumeFractionsInParticle[nTutmamPhases];	/* volume fractions of all phases in a particle */
 	int i,ph;	
+	
+	int numericIntegration = 0;
 
 	cmd = C_CMD(c,t,j);
 	ln2s = C_LN2S(c,t,j);
@@ -129,6 +131,15 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 	if (j == powerLawDistribution) {
 		cc = ln2s*log(cmd/powerLawD1);
 		quadratureFactor = quadrature_factor_olin(cc);
+		
+		if (condensationIntegrationLevel == 2 && ln2s < 0.5) {
+			numericIntegration = 1;
+			quadratureFactor = log(cmd/powerLawD1)/condensationIntegrationBins;
+			
+		} else if (condensationIntegrationLevel == 3) {
+			numericIntegration = 1;
+			quadratureFactor = log(cmd/powerLawD1)/condensationIntegrationBins;
+		}
 				
 	} else {
 		quadratureFactor = 1.0/TUTMAM_SQRTPI;
@@ -209,29 +220,57 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 				integralM1 = 0.0;
 				
 				if (j == powerLawDistribution) {
-					for (iIntegral = 0; iIntegral < 4; ++iIntegral) {
-						dp = gauss_olin_abscissas_dp(iIntegral,cmd);
-						mParticle = TUTMAM_PI6*rhoP*CBC(dp);
-						
-						diffCoeffParticleDep = diff_dep(c,t,dp);
-						diffCoeffParticle = diffCoeffParticleDep*diffCoeffParticleIndep;
-						
-						if (kelvinEffect == 1) {
-							kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,50.0));
-						}
-						
-						fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
-						
-						massGrowthRateDep = mass_growth_rate_dep(dp,fuchsSutuginForMass,dMolecule,diffCoeffGas,diffCoeffParticle,moleFractionInFluid,moleFractionsInPhase[iSpecies],phaseActivity*actCoeff,saturationVaporPressure,pressure,kelvinFactor);
-						if (condensationDirectionVector[iSpecies] == 1) {
-							massGrowthRateDep = tutmam_positive(massGrowthRateDep);
-						} else if (condensationDirectionVector[iSpecies] == -1) {
-							massGrowthRateDep = tutmam_negative(massGrowthRateDep);
-						}
+					if (numericIntegration == 0) { /* Gauss-Olin quadrature */
+						for (iIntegral = 0; iIntegral < 4; ++iIntegral) {
+							dp = gauss_olin_abscissas_dp(iIntegral,cmd);
+							mParticle = TUTMAM_PI6*rhoP*CBC(dp);
 							
-						/* weights are defined by Gauss-Hermite quadrature */
-						integral += gauss_olin_weights(iIntegral,cc)/dp*massGrowthRateIndep*massGrowthRateDep; /* (kg m^2/s^3) */
-						integralM1 += gauss_olin_weights(iIntegral,cc)*massGrowthRateDep; /* (kg m^2/s^3) */
+							diffCoeffParticleDep = diff_dep(c,t,dp);
+							diffCoeffParticle = diffCoeffParticleDep*diffCoeffParticleIndep;
+							
+							if (kelvinEffect == 1) {
+								kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,50.0));
+							}
+							
+							fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
+							
+							massGrowthRateDep = mass_growth_rate_dep(dp,fuchsSutuginForMass,dMolecule,diffCoeffGas,diffCoeffParticle,moleFractionInFluid,moleFractionsInPhase[iSpecies],phaseActivity*actCoeff,saturationVaporPressure,pressure,kelvinFactor);
+							if (condensationDirectionVector[iSpecies] == 1) {
+								massGrowthRateDep = tutmam_positive(massGrowthRateDep);
+							} else if (condensationDirectionVector[iSpecies] == -1) {
+								massGrowthRateDep = tutmam_negative(massGrowthRateDep);
+							}
+								
+							/* weights are defined by Gauss-Hermite quadrature */
+							integral += gauss_olin_weights(iIntegral,cc)/dp*massGrowthRateIndep*massGrowthRateDep; /* (kg/m s) */
+							integralM1 += gauss_olin_weights(iIntegral,cc)*massGrowthRateDep; /* (kg m^2/s^3) */
+						}
+						
+					} else { /* numeric integration */
+						for (iIntegral = 0; iIntegral < condensationIntegrationBins; ++iIntegral) {
+							dp = powerLawD1*pow(cmd/powerLawD1,(iIntegral-1.0)/condensationIntegrationBins - 0.5/condensationIntegrationBins);
+							mParticle = TUTMAM_PI6*rhoP*CBC(dp);
+							
+							diffCoeffParticleDep = diff_dep(c,t,dp);
+							diffCoeffParticle = diffCoeffParticleDep*diffCoeffParticleIndep;
+							
+							if (kelvinEffect == 1) {
+								kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,50.0));
+							}
+							
+							fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
+							
+							massGrowthRateDep = mass_growth_rate_dep(dp,fuchsSutuginForMass,dMolecule,diffCoeffGas,diffCoeffParticle,moleFractionInFluid,moleFractionsInPhase[iSpecies],phaseActivity*actCoeff,saturationVaporPressure,pressure,kelvinFactor);
+							if (condensationDirectionVector[iSpecies] == 1) {
+								massGrowthRateDep = tutmam_positive(massGrowthRateDep);
+							} else if (condensationDirectionVector[iSpecies] == -1) {
+								massGrowthRateDep = tutmam_negative(massGrowthRateDep);
+							}
+								
+							/* weights are defined by power law density function */
+							integral += powerlaw_density(ln2s,cmd,dp)/dp*massGrowthRateIndep*massGrowthRateDep; /* (kg/m s) */
+							integralM1 += powerlaw_density(ln2s,cmd,dp)*massGrowthRateDep; /* (kg m^2/s^3) */
+						}
 					}
 				
 				} else {
@@ -260,7 +299,7 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 						}
 							
 						/* weights are defined by Gauss-Hermite quadrature */
-						integral += gauss_hermite_weights(iIntegral)/dp*massGrowthRateIndep*massGrowthRateDep; /* (kg m^2/s^3) */
+						integral += gauss_hermite_weights(iIntegral)/dp*massGrowthRateIndep*massGrowthRateDep; /* (kg/m s) */
 						integralM1 += gauss_hermite_weights(iIntegral)*massGrowthRateDep; /* (kg m^2/s^3) */
 					}
 				}

@@ -21,6 +21,10 @@ int wallCondensationLawVector[nTutmamSpecies] = { wallCondensationLaws };	/* a v
 /* The following values are overwritten by CFD-TUTMAM GUI */
 int fluidZoneNumber = 1; 				/* cell zone id of the fluid */
 int gaussHermiteLevel = 7;				/* Gauss-Hermite quadrature level (5, 7, 9, or 11) */
+int condensationIntegrationLevel = 1;			/* integration level for condensation */
+int condensationIntegrationBins = 200;			/* integration bins for condensation */
+int coagulationIntegrationLevel = 1;			/* integration level for coagulation */
+int coagulationIntegrationBins = 20;			/* integration bins for coagulation */
 int diffusionLaw = 1;					/* Is parametrisation used for slip correction coefficient? */
 int slipCorrectionLaw = 1;				/* Is slip correction calculated as size-dependent? */
 real constantSlipCorrectionFactor = 1.0;/* value for constant slip correction coefficient */

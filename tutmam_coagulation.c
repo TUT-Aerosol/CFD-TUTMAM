@@ -62,6 +62,8 @@ void calculate_intra_coagulation_rate(real *sourceTerm, cell_t c, Thread *t, int
 	real mParticle1,mParticle2;	/* masses of a particle (kg) */
 	real correctionFactor;
 	real coagCoeff;
+	
+	int numericIntegration = 0;
 
 	ntot = C_NTOT(c,t,j);
 	if (ntot < minNumberConc || coagulationMatrix[j][j] == 0) {
@@ -77,6 +79,15 @@ void calculate_intra_coagulation_rate(real *sourceTerm, cell_t c, Thread *t, int
 	if (j == powerLawDistribution) { /* power law */
 		cc = alpha*log(D2/powerLawD1);
 		quadratureFactor = quadrature_factor_olin(cc);
+		
+		if (coagulationIntegrationLevel == 2 && D2/powerLawD1 > 3.0) {
+			numericIntegration = 1;
+			quadratureFactor = log(D2/powerLawD1)/coagulationIntegrationBins;
+			
+		} else if (coagulationIntegrationLevel == 3) {
+			numericIntegration = 1;
+			quadratureFactor = log(D2/powerLawD1)/coagulationIntegrationBins;
+		}
 		
 	} else { /* log-normal */
 		quadratureFactor = 1.0/TUTMAM_SQRTPI;
@@ -106,38 +117,75 @@ void calculate_intra_coagulation_rate(real *sourceTerm, cell_t c, Thread *t, int
 			return;
 		}
 
-		for (iIntegral1 = 0; iIntegral1 < 4; ++iIntegral1) {
-			dp1 = gauss_olin_abscissas_dp(iIntegral1,D2);
-			mParticle1 = TUTMAM_PI6*rhoP*CBC(dp1);
-			diffP1 = diffIndep*diff_dep(c,t,dp1);
-					
-			integralN2 = 0.0;
-			integralS2 = 0.0;
-			
-			for (iIntegral2 = 0; iIntegral2 < 4; ++iIntegral2) {
-				dp2 = gauss_olin_abscissas_dp(iIntegral2,D2);
-				mParticle2 = TUTMAM_PI6*rhoP*CBC(dp2);
-				diffP2 = diffIndep*diff_dep(c,t,dp2);
+		if (numericIntegration == 0) { /* Gauss-Olin quadrature */
+			for (iIntegral1 = 0; iIntegral1 < 4; ++iIntegral1) {
+				dp1 = gauss_olin_abscissas_dp(iIntegral1,D2);
+				mParticle1 = TUTMAM_PI6*rhoP*CBC(dp1);
+				diffP1 = diffIndep*diff_dep(c,t,dp1);
+						
+				integralN2 = 0.0;
+				integralS2 = 0.0;
 				
-				if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
-					correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoP,rhoP);
-				} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
-					correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoP,rhoP);
-				} else {
-					Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
-					return;
+				for (iIntegral2 = 0; iIntegral2 < 4; ++iIntegral2) {
+					dp2 = gauss_olin_abscissas_dp(iIntegral2,D2);
+					mParticle2 = TUTMAM_PI6*rhoP*CBC(dp2);
+					diffP2 = diffIndep*diff_dep(c,t,dp2);
+					
+					if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
+						correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoP,rhoP);
+					} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
+						correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoP,rhoP);
+					} else {
+						Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
+						return;
+					}
+					
+					coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
+					
+					integralN2 -= gauss_olin_weights(iIntegral2,cc)*coagCoeff;
+					integralS2 += gauss_olin_weights(iIntegral2,cc)*coagCoeff*(pow(mParticle1+mParticle2,TUTMAM_23) - 2*pow(mParticle1,TUTMAM_23));
 				}
 				
-				coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
-				
-				integralN2 -= gauss_olin_weights(iIntegral2,cc)*coagCoeff;
-				integralS2 += gauss_olin_weights(iIntegral2,cc)*coagCoeff*(pow(mParticle1+mParticle2,TUTMAM_23) - 2*pow(mParticle1,TUTMAM_23));
+				factor1 = gauss_olin_weights(iIntegral1,cc);
+
+				integralN1 += integralN2*factor1; 
+				integralS1 += integralS2*factor1; 
 			}
 			
-			factor1 = gauss_olin_weights(iIntegral1,cc);
+		} else { /* numeric integration */
+			for (iIntegral1 = 0; iIntegral1 < coagulationIntegrationBins; ++iIntegral1) {
+				dp1 = powerLawD1*pow(D2/powerLawD1,(iIntegral1-1.0)/coagulationIntegrationBins - 0.5/coagulationIntegrationBins);
+				mParticle1 = TUTMAM_PI6*rhoP*CBC(dp1);
+				diffP1 = diffIndep*diff_dep(c,t,dp1);
+						
+				integralN2 = 0.0;
+				integralS2 = 0.0;
+				
+				for (iIntegral2 = 0; iIntegral2 < coagulationIntegrationBins; ++iIntegral2) {
+					dp2 = powerLawD1*pow(D2/powerLawD1,(iIntegral2-1.0)/coagulationIntegrationBins - 0.5/coagulationIntegrationBins);
+					mParticle2 = TUTMAM_PI6*rhoP*CBC(dp2);
+					diffP2 = diffIndep*diff_dep(c,t,dp2);
+					
+					if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
+						correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoP,rhoP);
+					} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
+						correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoP,rhoP);
+					} else {
+						Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
+						return;
+					}
+					
+					coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
+					
+					integralN2 -= powerlaw_density(alpha,D2,dp2)*coagCoeff;
+					integralS2 += powerlaw_density(alpha,D2,dp2)*coagCoeff*(pow(mParticle1+mParticle2,TUTMAM_23) - 2*pow(mParticle1,TUTMAM_23));
+				}
+				
+				factor1 = powerlaw_density(alpha,D2,dp1);
 
-			integralN1 += integralN2*factor1; 
-			integralS1 += integralS2*factor1; 
+				integralN1 += integralN2*factor1; 
+				integralS1 += integralS2*factor1; 
+			}
 		}
 		
 	} else { /* log-normal */
@@ -302,6 +350,8 @@ real inter_coagulation_rate_L(cell_t c, Thread *t, int iUds, int j, int jOther) 
 	real coagCoeff;				/* coagulation coefficient divided by 2pi (m^3/s) */
 	real massFraction = 0.0;	/* mass fraction of current species in mode */
 	real sourceTerm;
+	
+	int numericIntegration = 0;
 
 	cmdj = C_CMD(c,t,j);
 	cmdjOther = C_CMD(c,t,jOther);
@@ -322,40 +372,86 @@ real inter_coagulation_rate_L(cell_t c, Thread *t, int iUds, int j, int jOther) 
 	integral1 = 0.0;
 	
 	if (j == powerLawDistribution) { /* power law */
+	
+		if (coagulationIntegrationLevel == 2 && cmdj/powerLawD1 > 3.0) {
+			numericIntegration = 1;
+			
+		} else if (coagulationIntegrationLevel == 3) {
+			numericIntegration = 1;
+		}
+		
 		cc = ln2sj*log(cmdj/powerLawD1);
 		
-		for (iIntegral1 = 0; iIntegral1 < 4; ++iIntegral1) {
-			dp1 = gauss_olin_abscissas_dp(iIntegral1,cmdj);
-			diffP1 = diffIndep*diff_dep(c,t,dp1);
-					
-			integral2 = 0.0;
-			
-			for (iIntegral2 = 0; iIntegral2 < gaussHermiteLevel; ++iIntegral2) {
-				x2 = gauss_hermite_abscissas(iIntegral2); /* x-variable is defined by Gauss-Hermite quadrature */
-				dp2 = cmdjOther*exp(x2*sqrt(2*ln2sjOther)); /* converting x back to dp */
-				diffP2 = diffIndep*diff_dep(c,t,dp2);
+		if (numericIntegration == 0) { /* Gauss-Olin quadrature */
+			for (iIntegral1 = 0; iIntegral1 < 4; ++iIntegral1) {
+				dp1 = gauss_olin_abscissas_dp(iIntegral1,cmdj);
+				diffP1 = diffIndep*diff_dep(c,t,dp1);
+						
+				integral2 = 0.0;
 				
-				if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
-					correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
-				} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
-					correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
-				} else {
-					Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
-					return 0.0;
+				for (iIntegral2 = 0; iIntegral2 < gaussHermiteLevel; ++iIntegral2) {
+					x2 = gauss_hermite_abscissas(iIntegral2); /* x-variable is defined by Gauss-Hermite quadrature */
+					dp2 = cmdjOther*exp(x2*sqrt(2*ln2sjOther)); /* converting x back to dp */
+					diffP2 = diffIndep*diff_dep(c,t,dp2);
+					
+					if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
+						correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
+						correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else {
+						Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
+						return 0.0;
+					}
+					
+					coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
+					integral2 += gauss_hermite_weights(iIntegral2)*coagCoeff;
 				}
 				
-				coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
-				integral2 += gauss_hermite_weights(iIntegral2)*coagCoeff;
+				if (k < 0.1) { /* k=0 */
+					integral1 += integral2*gauss_olin_weights(iIntegral1,cc);
+					
+				} else if (k > 0.9) { /* k=1 */
+					integral1 += integral2*gauss_olin_weights(iIntegral1,cc)*CBC(dp1);
+					
+				} else { /* k=2/3 */
+					integral1 += integral2*gauss_olin_weights(iIntegral1,cc)*SQR(dp1);
+				}
 			}
 			
-			if (k < 0.1) { /* k=0 */
-				integral1 += integral2*gauss_olin_weights(iIntegral1,cc);
+		} else { /* numeric integration */
+			for (iIntegral1 = 0; iIntegral1 < coagulationIntegrationBins; ++iIntegral1) {
+				dp1 = powerLawD1*pow(cmdj/powerLawD1,(iIntegral1-1.0)/coagulationIntegrationBins - 0.5/coagulationIntegrationBins);
+				diffP1 = diffIndep*diff_dep(c,t,dp1);
+						
+				integral2 = 0.0;
 				
-			} else if (k > 0.9) { /* k=1 */
-				integral1 += integral2*gauss_olin_weights(iIntegral1,cc)*CBC(dp1);
+				for (iIntegral2 = 0; iIntegral2 < gaussHermiteLevel; ++iIntegral2) {
+					x2 = gauss_hermite_abscissas(iIntegral2); /* x-variable is defined by Gauss-Hermite quadrature */
+					dp2 = cmdjOther*exp(x2*sqrt(2*ln2sjOther)); /* converting x back to dp */
+					diffP2 = diffIndep*diff_dep(c,t,dp2);
+					
+					if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
+						correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
+						correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else {
+						Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
+						return 0.0;
+					}
+					
+					coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
+					integral2 += gauss_hermite_weights(iIntegral2)*coagCoeff;
+				}
 				
-			} else { /* k=2/3 */
-				integral1 += integral2*gauss_olin_weights(iIntegral1,cc)*SQR(dp1);
+				if (k < 0.1) { /* k=0 */
+					integral1 += integral2*powerlaw_density(ln2sj,cmdj,dp1);
+					
+				} else if (k > 0.9) { /* k=1 */
+					integral1 += integral2*powerlaw_density(ln2sj,cmdj,dp1)*CBC(dp1);
+					
+				} else { /* k=2/3 */
+					integral1 += integral2*powerlaw_density(ln2sj,cmdj,dp1)*SQR(dp1);
+				}
 			}
 		}
 		
@@ -434,6 +530,8 @@ real inter_coagulation_rate_LG(cell_t c, Thread *t, int iUds, int j, int jOther)
 	real coagCoeff;				/* coagulation coefficient divided by 2pi (m^3/s) */
 	real massFraction = 0.0;	/* mass fraction of current species in mode */
 	real sourceTerm;
+	
+	int numericIntegration = 0;
 
 	cmdj = C_CMD(c,t,j);
 	cmdjOther = C_CMD(c,t,jOther);
@@ -448,6 +546,15 @@ real inter_coagulation_rate_LG(cell_t c, Thread *t, int iUds, int j, int jOther)
 	if (jOther == powerLawDistribution) {
 		cc = ln2sjOther*log(cmdjOther/powerLawD1);
 		quadratureFactor = quadrature_factor_olin(cc);
+		
+		if (coagulationIntegrationLevel == 2 && cmdjOther/powerLawD1 > 3.0) {
+			numericIntegration = 1;
+			quadratureFactor = log(cmdjOther/powerLawD1)/coagulationIntegrationBins;
+			
+		} else if (coagulationIntegrationLevel == 3) {
+			numericIntegration = 1;
+			quadratureFactor = log(cmdjOther/powerLawD1)/coagulationIntegrationBins;
+		}
 		
 	} else {
 		quadratureFactor = 1.0/TUTMAM_SQRTPI;
@@ -472,26 +579,52 @@ real inter_coagulation_rate_LG(cell_t c, Thread *t, int iUds, int j, int jOther)
 		integral2 = 0.0;
 		
 		if (jOther == powerLawDistribution) {
-			for (iIntegral2 = 0; iIntegral2 < 4; ++iIntegral2) {
-				dp2 = gauss_olin_abscissas_dp(iIntegral2,cmdjOther);
-				diffP2 = diffIndep*diff_dep(c,t,dp2);
-				
-				if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
-					correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
-				} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
-					correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
-				} else {
-					Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
-					return 0.0;
+			if (numericIntegration == 0) { /* Gauss-Olin quadrature */
+				for (iIntegral2 = 0; iIntegral2 < 4; ++iIntegral2) {
+					dp2 = gauss_olin_abscissas_dp(iIntegral2,cmdjOther);
+					diffP2 = diffIndep*diff_dep(c,t,dp2);
+					
+					if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
+						correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
+						correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else {
+						Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
+						return 0.0;
+					}
+					
+					coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
+					
+					if (k > 0.9) { /* k=1 */
+						integral2 += gauss_olin_weights(iIntegral2,cc)*coagCoeff*CBC(dp1);
+					
+					} else { /* k=2/3 */
+						integral2 += gauss_olin_weights(iIntegral2,cc)*coagCoeff*(pow(rhoPj*CBC(dp1)+rhoPjOther*CBC(dp2),TUTMAM_23) - pow(rhoPj,TUTMAM_23)*SQR(dp1));
+					}
 				}
 				
-				coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
-				
-				if (k > 0.9) { /* k=1 */
-					integral2 += gauss_olin_weights(iIntegral2,cc)*coagCoeff*CBC(dp1);
-				
-				} else { /* k=2/3 */
-					integral2 += gauss_olin_weights(iIntegral2,cc)*coagCoeff*(pow(rhoPj*CBC(dp1)+rhoPjOther*CBC(dp2),TUTMAM_23) - pow(rhoPj,TUTMAM_23)*SQR(dp1));
+			} else { /* numeric integration */
+				for (iIntegral2 = 0; iIntegral2 < coagulationIntegrationBins; ++iIntegral2) {
+					dp2 = powerLawD1*pow(cmdjOther/powerLawD1,(iIntegral2-1.0)/coagulationIntegrationBins - 0.5/coagulationIntegrationBins);
+					diffP2 = diffIndep*diff_dep(c,t,dp2);
+					
+					if (transitionRegimeCorrectionFactorForCoagulationLaw == 1) {
+						correctionFactor = fuchs_sutugin_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else if (transitionRegimeCorrectionFactorForCoagulationLaw == 2) {
+						correctionFactor = dahneke_for_coagulation(dp1,dp2,diffP1,diffP2,tempFluid,rhoPj,rhoPjOther);
+					} else {
+						Error("Illegal transitionRegimeCorrectionFactorForCoagulationLaw\n");
+						return 0.0;
+					}
+					
+					coagCoeff = coagulation_coefficient(dp1,dp2,diffP1,diffP2,correctionFactor);
+					
+					if (k > 0.9) { /* k=1 */
+						integral2 += powerlaw_density(ln2sjOther,cmdjOther,dp2)*coagCoeff*CBC(dp1);
+					
+					} else { /* k=2/3 */
+						integral2 += powerlaw_density(ln2sjOther,cmdjOther,dp2)*coagCoeff*(pow(rhoPj*CBC(dp1)+rhoPjOther*CBC(dp2),TUTMAM_23) - pow(rhoPj,TUTMAM_23)*SQR(dp1));
+					}
 				}
 			}
 			
@@ -545,6 +678,7 @@ DEFINE_SOURCE(inter_coagulation,c,t,dS,eqn)
 	real ntotj,ntotjOther;	/* ntot (1/m^3) */
 	real quadratureFactor;
 	real sourceTerm = 0.0;
+	real d;
 	dS[eqn] = 0.0;			/* differential of the source term */
 	
 	iUds = eqn-EQ_UDS;
@@ -555,6 +689,8 @@ DEFINE_SOURCE(inter_coagulation,c,t,dS,eqn)
 	if (ntotj < minNumberConc) {
 		return 0.0;
 	}
+	
+	d = C_CMD(c,t,j)/powerLawD1;
 	
 	if (coagulationProcess == 1 && interModalCoagulationProcess == 1) {
 		for (jOther = 0; jOther < nTutmamModes; ++jOther) {
@@ -575,7 +711,15 @@ DEFINE_SOURCE(inter_coagulation,c,t,dS,eqn)
 	}
 	
 	if (j == powerLawDistribution) {
-		quadratureFactor = quadrature_factor_olin(C_LN2S(c,t,j)*log(C_CMD(c,t,j)/powerLawD1));
+		if (coagulationIntegrationLevel == 2 && d > 3.0) {
+			quadratureFactor = log(d)/coagulationIntegrationBins;
+			
+		} else if (coagulationIntegrationLevel == 3) {
+			quadratureFactor = log(d)/coagulationIntegrationBins;
+			
+		} else {
+			quadratureFactor = quadrature_factor_olin(C_LN2S(c,t,j)*log(d));
+		}
 		
 	} else {
 		quadratureFactor = 1.0/TUTMAM_SQRTPI;
