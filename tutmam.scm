@@ -6,9 +6,15 @@
 ;;
 ;;Compilation panel
 ;;
+(if (not (rp-var-object 'settings_suffix_rp))(rp-var-define 'settings_suffix_rp "" 'string #f))
+(if (not (rp-var-object 'material_suffix_rp))(rp-var-define 'material_suffix_rp "" 'string #f))
+;;
 (define  gui-compilation
-(let ((panel #f))
-(define (update-cb . args) ())
+(let ((panel #f)(settingsSuffix)(materialSuffix))
+(define (update-cb . args) 
+(cx-set-text-entry settingsSuffix (%rpgetvar 'settings_suffix_rp))    
+(cx-set-text-entry materialSuffix (%rpgetvar 'material_suffix_rp))    
+)
 (define (apply-cb . args) ())
 (lambda args  
 (if (not panel) 
@@ -22,12 +28,18 @@
 	))
 (cx-create-button table "2. Compile" 'row 1 'col 1 'activate-callback
 	(lambda ()
+		(rpsetvar 'settings_suffix_rp (cx-show-text-entry settingsSuffix)) 
+		(rpsetvar 'material_suffix_rp (cx-show-text-entry materialSuffix)) 
+		(ti-menu-load-string (string-append "!cp tutmam_settings" (%rpgetvar 'settings_suffix_rp) ".h tutmam_settings.h"))
+		(ti-menu-load-string (string-append "!cp tutmam_material_func" (%rpgetvar 'material_suffix_rp) ".c tutmam_material_func.c"))
 		(ti-menu-load-string "f rj tutmam.compile")
 	))
 (cx-create-button table "3. Load" 'row 1 'col 2 'activate-callback
 	(lambda ()
 		(ti-menu-load-string "f rj tutmam.load")
 	))
+(set! settingsSuffix (cx-create-text-entry table "Settings name suffix" 'width 14 'row 2 'col 1 ))
+(set! materialSuffix (cx-create-text-entry table "Material func. name suffix" 'width 14 'row 3 'col 1 ))
 )  
 ) (cx-show-panel panel)    )))
 ;;
