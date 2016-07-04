@@ -9,6 +9,7 @@ tutmam_func.c
 tutmam_material_func.c
 tutmam_settings.c
 tutmam_alpha_d_interpolation.c
+tutmam_alpha_d_iteration.c
 tutmam_transfer_pl2ln.c
 tutmam_wall_condensation.c
 
@@ -21,5 +22,6 @@ tutmam_func.h
 tutmam_material_func.h
 tutmam_settings.h
 tutmam_alpha_d_interpolation.h
+tutmam_alpha_d_iteration.h
 tutmam_transfer_pl2ln.h
 tutmam_wall_condensation.h

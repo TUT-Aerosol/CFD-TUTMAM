@@ -33,6 +33,7 @@ real particleTurbSchmidtNumber = 0.7;	/* turbulent Schmidt number for particles 
 
 real minGSD = 1.01;						/* Minimum value for GSD. 1 causes division by zero; therefore, over 1 is required. */
 real maxGSD = 3.0;						/* Maximum value for GSD. */
+int powerLawParametersSolvingMethod = 0;/* Method for solving power law distribution parameters. 0: iteration, 1: interpolation */
 
 real uRFCondensationM23 = 1.0;			/* under-relaxation factor for condensation to moment 2/3 */
 real uRFCondensationM1[] = { 0.0 };		/* under-relaxation factor vector for condensation to moment 1 */

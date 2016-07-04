@@ -12,6 +12,7 @@
 #include  "tutmam_material_func.h"
 #include  "tutmam_condensation.h"
 #include  "tutmam_alpha_d_interpolation.h"
+#include  "tutmam_alpha_d_iteration.h"
 
 /* Mole fraction of iSpecies in fluid. */
 real C_XI(cell_t c, Thread *t, int iSpecies) {
@@ -789,9 +790,81 @@ real calculateCmd(real numberConc,real surfaceConc,real massConc,real rhoParticl
 	return tutmam_limits(minCMD,cmd,maxCMD);
 }
 
+/* Calculates A and B of the PL distribution from moment concentrations */
+void calculateAAndBMoments(real *AAndB, real numberConc, real surfaceConc, real massConc, real rhoParticle) {
+	/* m1^(-1/3) */
+	real m1m13 = TUTMAM_PI6M13*pow(rhoParticle,-TUTMAM_13)/powerLawD1;
+	
+	AAndB[0] = pow(massConc/numberConc,TUTMAM_13)*m1m13;
+	AAndB[1] = massConc/surfaceConc*m1m13;
+	
+	return;
+}
+
+/* Calculates A and B of the PL distribution from distribution parameters */
+void calculateAAndBParameters(real *AAndB, real *alphaAndD) {
+	real a = alphaAndD[0];
+	real d = alphaAndD[1];
+	real a2;
+	real a3;
+	real da3;
+	
+	/* to prevent divisions by zero */
+	if (fabs(a) < whenAlphaIsZero || fabs(a+2.0) < whenAlphaIsZero || fabs(a+3.0) < whenAlphaIsZero) {
+		a += whenAlphaIsZero;
+	}
+	
+	if (fabs(d-1.0) < whenAlphaIsZero) {
+		d += whenAlphaIsZero;
+	}
+	
+	a2 = a+2.0;
+	a3 = a+3.0;
+	da3 = pow(d,a3);
+	
+	AAndB[0] = pow(a/a3*(1.0-da3)/(1.0-pow(d,a)),TUTMAM_13);
+	AAndB[1] = a2/a3*(1.0-da3)/(1.0-pow(d,a2));
+	
+	return;
+}
+
+/* Calculates JAcobian matrix of A and B of the PL distribution from distribution parameters */
+void calculateJAAndB(real *JAAndB, real *alphaAndD) {
+	real a = alphaAndD[0];
+	real d = alphaAndD[1];
+	real a2,a3,da,da1,da2,da3,lnd,dam1,da2m1,da3m1;
+	
+	/* to prevent divisions by zero */
+	if (fabs(a) < whenAlphaIsZero || fabs(a+2.0) < whenAlphaIsZero || fabs(a+3.0) < whenAlphaIsZero) {
+		a += whenAlphaIsZero;
+	}
+	
+	if (fabs(d-1.0) < whenAlphaIsZero) {
+		d += whenAlphaIsZero;
+	}
+	
+	a2 = a+2.0;
+	a3 = a+3.0;
+	da = pow(d,a);
+	da1 = pow(d,a+1.0);
+	da2 = pow(d,a2);
+	da3 = pow(d,a3);
+	lnd = log(d);
+	dam1 = da-1.0;
+	da2m1 = da2-1.0;
+	da3m1 = da3-1.0;
+	
+	JAAndB[0] = (((da3*(1.0+a*lnd)-1.0)*(da*a3-a3)-(da*(1.0+a3*lnd)-1.0)*(a*da3m1)))/SQR(da*a3-a3)/(3.0*pow(a/a3*da3m1/dam1,TUTMAM_23));
+	JAAndB[1] = (a/a3*(a3*da2*dam1-a*pow(d,a-1.0)*da3m1))/SQR(dam1)/(3.0*pow(a/a3*da3m1/dam1,TUTMAM_23));
+	JAAndB[2] = ((da3*(1.0+a2*lnd)-1.0)*(da2*a3-a3)-(da2*(1.0+a3*lnd)-1.0)*a2*da3m1)/SQR(da2*a3-a3);
+	JAAndB[3] = a2/a3*(a3*da2*da2m1-a2*da1*da3m1)/SQR(da2m1);
+	
+	return;
+}
+
 /* Calculates alpha from moment concentrations. */
-void calculateAlphaAndD2(real *alphaAndD2, real numberConc,real surfaceConc,real massConc,real rhoParticle) {
-	real A,B;
+void calculateAlphaAndD2(real *alphaAndD2, real numberConc, real surfaceConc, real massConc, real rhoParticle, real *alphaAndDGuess) {
+	real AAndB[2];
 	real m1m13;
 	real alphaAndD[2];
 	
@@ -813,14 +886,15 @@ void calculateAlphaAndD2(real *alphaAndD2, real numberConc,real surfaceConc,real
 		return;
 	}
 	
-	/* m1^(-1/3) */
-	m1m13 = TUTMAM_PI6M13*pow(rhoParticle,-TUTMAM_13)/powerLawD1;
+	calculateAAndBMoments(AAndB,numberConc,surfaceConc,massConc,rhoParticle);
 	
-	A = pow(massConc/numberConc,TUTMAM_13)*m1m13;
-	B = massConc/surfaceConc*m1m13;
-	
-	interpolateAlphaAndD(alphaAndD,A,B);
-	
+	if (powerLawParametersSolvingMethod == 1) {
+		interpolateAlphaAndD(alphaAndD,AAndB[0],AAndB[1]);
+		
+	} else {
+		iterateAlphaAndD(alphaAndD,AAndB,alphaAndDGuess);
+	}
+		
 	alphaAndD2[0] = tutmam_limits(minAlpha,alphaAndD[0],maxAlpha);
 	alphaAndD2[1] = tutmam_limits(powerLawD1,alphaAndD[1]*powerLawD1,maxD2);
 	return;
@@ -1092,8 +1166,24 @@ void tutmam_transfer_settings_aerosol_distribution() {
 		maxGSD = 3.0;
 	}
 	
+	powerLawParametersSolvingMethod = RP_Get_Boolean("power_law_parameters_solving_method_rp");
+	
 	Message("Minimum GSD: %g\n",minGSD);
 	Message("Maximum GSD: %g\n",maxGSD);
+	
+	Message("PL distr. param. solving method:\n    ");
+	switch(powerLawParametersSolvingMethod) {
+		case 0:
+			Message("Levenberg-Marquardt iteration algorithm\n");
+			break;
+			
+		case 1:
+			Message("Interpolation table\n");
+			break;
+			
+		default:
+			Error("Unknown PL distr. param. solving method\n");
+	}
 	
 #endif
 
@@ -1101,6 +1191,7 @@ void tutmam_transfer_settings_aerosol_distribution() {
 
 	/* setting the C-code variables from host process to node processes */
 	host_to_node_real_2(minGSD,maxGSD);
+	host_to_node_int_1(powerLawParametersSolvingMethod);
 	
 #endif
 
@@ -1656,6 +1747,7 @@ void tutmam_save_udm_variables() {
 	int iSpecies;			/* integer for particle species loop */
 	int j;					/* mode ID */
 	real alphaAndD2[2];
+	real alphaAndDGuess[2];
 	
 	/* fluid domain has (always?) id 1 */
     mixtureDomain = Get_Domain(1);
@@ -1687,7 +1779,10 @@ void tutmam_save_udm_variables() {
 					C_NTOT(c,t,j) = numberConc;
 					
 					if (j == powerLawDistribution) {
-						calculateAlphaAndD2(alphaAndD2,numberConc,surfaceConc,massConc,rhoParticle);
+						alphaAndDGuess[0] = C_LN2S(c,t,j);
+						alphaAndDGuess[1] = C_CMD(c,t,j)/powerLawD1;
+						
+						calculateAlphaAndD2(alphaAndD2,numberConc,surfaceConc,massConc,rhoParticle,alphaAndDGuess);
 						C_LN2S(c,t,j) = uRFPowerLawParameters*alphaAndD2[0] + (1.0-uRFPowerLawParameters)*C_LN2S(c,t,j);
 						C_CMD(c,t,j) = uRFPowerLawParameters*alphaAndD2[1] + (1.0-uRFPowerLawParameters)*C_CMD(c,t,j);
 						

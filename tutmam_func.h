@@ -120,8 +120,17 @@
 	/* Calculates count median diameter (m) from moment concentrations. */
 	real calculateCmd(real numberConc,real surfaceConc,real massConc,real rhoParticle);
 	
+	/* Calculates A and B of the PL distribution from moment concentrations. */
+	void calculateAAndBMoments(real *AAndB, real numberConc, real surfaceConc, real massConc, real rhoParticle);
+	
+	/* Calculates A and B of the PL distribution from distribution parameters */
+	void calculateAAndBParameters(real *AAndB, real *alphaAndD);
+	
+	/* Calculates JAcobian matrix of A and B of the PL distribution from distribution parameters */
+	void calculateJAAndB(real *JAAndB, real *alphaAndD);
+	
 	/* Calculates alpha from moment concentrations. */
-	void calculateAlphaAndD2(real *alphaAndD2, real numberConc,real surfaceConc,real massConc,real rhoParticle);
+	void calculateAlphaAndD2(real *alphaAndD2, real numberConc, real surfaceConc, real massConc, real rhoParticle, real *alphaAndDGuess);
 	
 	/* Calculates CMD of power law distribution from D1,D2, and alpha */
 	real calculateCmdOfPowerLaw(real D2, real alpha);

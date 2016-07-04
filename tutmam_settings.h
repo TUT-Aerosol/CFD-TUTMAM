@@ -179,6 +179,7 @@
 
 	extern real minGSD;							/* Minimum value for GSD. 1 causes division by zero; therefore, over 1 is required. */
 	extern real maxGSD;							/* Maximum value for GSD. */
+	extern int powerLawParametersSolvingMethod;	/* Method for solving power law distribution parameters. 0: iteration, 1: interpolation */
 	
 	extern real uRFNucleation;					/* under-relaxation factor for nucleation */
 	extern int nucleationLaw;					/* nucleation law ID */
