@@ -619,11 +619,11 @@ real water_kappa(cell_t c, Thread *t, int j) {
 				kappa = tutmam_limits(0.0,0.01*C1,maxKappa);
 				
 			} else {
-				kappa = ((1.0-uRFKappa) + uRFKappa*tutmam_limits(0.0,kappa_0*C1,maxKappa)); /* under-relaxation */
+				kappa = ((1.0-uRFKappa)*kappa_0 + uRFKappa*tutmam_limits(0.0,kappa_0*C1,maxKappa)); /* under-relaxation */
 			}
 			
 		} else {
-			kappa = ((1.0-uRFKappa) + uRFKappa*tutmam_limits(minKappa,kappa_0-1.0/C1,maxKappa)); /* under-relaxation */
+			kappa = ((1.0-uRFKappa)*kappa_0 + uRFKappa*tutmam_limits(minKappa,kappa_0-1.0/C1,maxKappa)); /* under-relaxation */
 		}
 				
 	} else {
