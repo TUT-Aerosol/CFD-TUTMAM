@@ -127,6 +127,46 @@ void calculate_self_coagulational_transfer_rate(real *sourceTerm, cell_t c, Thre
 	return;
 }
 
+/* Use robustness coagulation model to coagulational transfer */
+void use_robustness_coagulation_model_transfer(real *sourceTerm, cell_t c, Thread *t) {
+	real x[ND_ND];
+	real deltaT;
+	real ntot;
+	real stot;
+	real mtot = 0.0;
+	int iSpecies;
+	
+	if (coagulationRobustnessModel == 0) {
+		return;
+	}
+	
+	ntot = C_UDMI(c,t,powerLawDistribution);
+	stot = C_UDS_M23(c,t,powerLawDistribution)*C_R(c,t);
+	
+	for (iSpecies = 0; iSpecies < nTutmamSpecies; ++iSpecies) {
+		mtot += C_UDS_M1(c,t,iSpecies,powerLawDistribution)*C_R(c,t);
+	}
+	
+	if (ntot < minNumberConc || stot < minSurfaceConc || mtot < minMassConc) {
+		return;
+	}
+	
+	#if RP_2D
+		C_CENTROID(x,c,t);
+		deltaT = sqrt(C_VOLUME(c,t)/x[1]/(SQR(C_U(c,t))+SQR(C_V(c,t))));
+	#endif
+	
+	#if RP_3D
+		deltaT = (2.04*pow(C_VOLUME(c,t),TUTMAM_13))/sqrt(SQR(C_U(c,t))+SQR(C_V(c,t))+SQR(C_W(c,t)));
+	#endif	
+	
+	sourceTerm[0] /= (1.0 + sourceTerm[0]*deltaT/ntot);
+	sourceTerm[1] /= (1.0 + sourceTerm[1]*deltaT/stot);
+	sourceTerm[2] /= (1.0 + sourceTerm[2]*deltaT/mtot);
+	
+	return;
+}
+
 /* Calculating intramodal condensation rate source terms and adding them to sourceTerm vector */
 void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread *t) {
 	real ntot;										/* number concentration (1/m^3) */
@@ -144,6 +184,7 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	real pressure;									/* pressure (Pa) */
 	real factor;									/* factor used in power law distribution */
 	real diffCoeffGas;								/* diffusion coefficient of vapor (m^2/s) */
+	real diffCoeffGasDry;							/* diffusion coefficient of dry vapor (m^2/s) */
 	real diffCoeffParticle;							/* diffusion coefficient of particle (m^2/s) */
 	real dMolecule;									/* vapor molecule diameter (m) */
 	real mParticle;									/* particle mass (kg) */
@@ -164,7 +205,7 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	int iFluentSpeciesWater = -1;					/* Fluent species ID for water */
 	int iFluentSpeciesSulfuricAcid = -1;			/* Fluent species ID for sulfuric acid */
 	int iSpeciesWater = -1;							/* species ID for water */
-	real relativeHumidity;							/* rh */
+	real relativeHumidity = 0.5;					/* rh */
 	
 	ntot = C_NTOT(c,t,powerLawDistribution);
 	rhoP = C_R_PARTICLE(c,t,powerLawDistribution);
@@ -174,7 +215,7 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	tempFluid = C_T(c,t);
 	pressure = C_P_TOT(c,t);
 	
-	if (ntot < minNumberConc || d-1.0 < 0.001) {
+	if (ntot < minNumberConc) {
 		return;
 	}
 	
@@ -187,6 +228,8 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	} else { /* latent heat of condensation neglected */
 		tempParticle = tempFluid;
 	}
+	
+	iFluentSpeciesSulfuricAcid = SV_SpeciesIndex("h2so4"); 
 	
 	if (waterEq == 1 || iFluentSpeciesSulfuricAcid > -1) { /* if water-equilibrium calculation is on, or if h2so4 exists */
 		iFluentSpeciesWater = SV_SpeciesIndex("h2o"); /* find water ID in Fluent */
@@ -210,7 +253,6 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	}
 	
 	/* calculate rh only when sulfuric acid exists */
-	iFluentSpeciesSulfuricAcid = SV_SpeciesIndex("h2so4"); 
 	if (iFluentSpeciesSulfuricAcid > -1) {
 		relativeHumidity = pressure*C_XI(c,t,iSpeciesWater)/saturation_vapor_pressure(tempFluid,iSpeciesWater);
 	}
@@ -224,8 +266,9 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 				mParticle = TUTMAM_PI6*rhoP*CBC(D2);
 				iFluentSpecies = fluentSpeciesIdVector[iSpecies];
 				diffCoeffGas = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies,relativeHumidity);
+				diffCoeffGasDry = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies,0.0);
 				diffCoeffParticle = diff_dep(c,t,D2)*diff_indep(c,t);
-				fuchsSutuginForMass = fuchs_sutugin_for_mass(D2,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
+				fuchsSutuginForMass = fuchs_sutugin_for_mass(D2,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffGasDry,diffCoeffParticle,dMolecule,mParticle);
 				moleFractionInFluid = C_XI(c,t,iSpecies);
 				moleFractionInParticle = C_XI_PARTICLE(c,t,iSpecies,powerLawDistribution);
 				
@@ -244,7 +287,7 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 				
 				if (kelvinEffect == 1) {
 					kelvinDiameter = kelvin_diameter(tempParticle,iSpecies,powerLawDistribution,moleFractionsInPhase,massFractionsInPhase);
-					kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/D2,50.0));
+					kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/D2,10.0));
 					
 				} else {
 					kelvinFactor = 1.0;
@@ -264,7 +307,7 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 				}
 				
 				massGrowthRate += massGrowthRateIndep*massGrowthRateDep; /* calculate total mass growth rate */
-				if (waterEq == 1 && iSpecies == waterEqSpecies) { /* if water-connected species in water-equilibrium calculation */
+				if (waterEq == 1 && iSpecies == waterEqSpecies && iCondensingSpecies[iSpeciesWater] == 1) { /* if water-connected species in water-equilibrium calculation */
 					massGrowthRate += kappa*condensationMultiplier*massGrowthRateIndep*massGrowthRateDep; /* add water part */
 				} 
 			}
@@ -273,11 +316,21 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	
 	massGrowthRate = tutmam_positive(massGrowthRate); /* only growth is taken into account */
 	
-	if (fabs(alpha) < whenAlphaIsZero) {
-		factor = 1.0/log(d);
+	if (d-1.0 < whenAlphaIsZero) {
+		factor = 3.0;
 		
 	} else {
-		factor = alpha/(1.0-pow(d,0.0-alpha));
+		if (fabs(alpha) < whenAlphaIsZero) {
+			factor = 1.5*(1.0-pow(d,-2.0))/log(d);
+			
+		} else {
+			if (fabs(alpha + 2.0) < whenAlphaIsZero) {
+				factor = -6.0*log(d)/(1.0-d*d);
+				
+			} else {
+				factor = 3.0*alpha/(alpha+2.0)*(1.0-pow(d,-2.0-alpha))/(1.0-pow(d,0.0-alpha));
+			}
+		}
 	}
 	
 	factor *= interModalCondensationFactor;
@@ -289,9 +342,18 @@ void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread 
 	return;
 }
 
+/* Making under-relaxation to sourceTerm vector */
+void under_relax_transfer_pl2ln_rate(real *sourceTerm, real uRFTransferPl2Ln, cell_t c, Thread *t) {
+	
+	sourceTerm[0] = sourceTerm[0]*uRFTransferPl2Ln + C_UDMI(c,t,iUdmTransferPl2LnM0)*(1.0-uRFTransferPl2Ln);
+	sourceTerm[1] = sourceTerm[1]*uRFTransferPl2Ln + C_UDMI(c,t,iUdmTransferPl2LnM23)*(1.0-uRFTransferPl2Ln);
+	sourceTerm[2] = sourceTerm[2]*uRFTransferPl2Ln + C_UDMI(c,t,iUdmTransferPl2LnM1)*(1.0-uRFTransferPl2Ln);
+
+	return;
+}
+
 /* Storing transfer rate source terms to UDMs */
 void store_transfer_rate(real *sourceTerm, cell_t c, Thread *t) {
-
 	C_UDMI(c,t,iUdmTransferPl2LnM0) = sourceTerm[0];
 	C_UDMI(c,t,iUdmTransferPl2LnM23) = sourceTerm[1];
 	C_UDMI(c,t,iUdmTransferPl2LnM1) = sourceTerm[2];
@@ -342,6 +404,9 @@ DEFINE_SOURCE(transfer_pl2ln,c,t,dS,eqn)
 			if (selfCoagulationalTransferProcess == 1) {
 				/* calculate self-coagulation transfer rate and store it to sourceTerm */
 				calculate_self_coagulational_transfer_rate(sourceTerm,c,t);
+				
+				/* Use robustness coagulation model to coagulational transfer */
+				use_robustness_coagulation_model_transfer(sourceTerm,c,t);
 			}
 			
 			if (interModalCondensationProcess == 1) {
@@ -349,6 +414,9 @@ DEFINE_SOURCE(transfer_pl2ln,c,t,dS,eqn)
 				calculate_inter_modal_condensation_rate(sourceTerm,c,t);
 			}
 			
+			/* make under-relaxation to sourceTerm */
+			under_relax_transfer_pl2ln_rate(sourceTerm,uRFTransferPl2Ln,c,t);
+						
 			/* store rates to UDMs */
 			store_transfer_rate(sourceTerm,c,t);
 

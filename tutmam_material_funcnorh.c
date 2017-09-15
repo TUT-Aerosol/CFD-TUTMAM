@@ -92,10 +92,10 @@ real diffusion_coefficient_gas(real temp, real pressure, int iFluentSpecies, rea
 	switch(iFluentSpecies) {
 		case 0 :
 			/* h2so4, no rh dependence */
-			/* diffCoeff = -1.8832e-6 + 2.3024e-8*temp + 2.2366e-11*temp*temp;  */
+			diffCoeff = -1.8832e-6 + 2.3024e-8*temp + 2.2366e-11*temp*temp;
 			
 			/* h2so4, rh dependence */
-			diffCoeff = 1.8e-9*pow(temp,1.5)/(1.0+0.2876*pow(tutmam_limits(0.0,relativeHumidity,3.0),0.5643)); 
+			/* diffCoeff = 1.8e-9*pow(temp,1.5)/(1.0+0.2876*pow(tutmam_limits(0.0,relativeHumidity,3.0),0.5643));  */
 			break;
 			
 		case 1 :
@@ -228,7 +228,7 @@ real saturation_vapor_pressure(real temp, int iSpecies) {
 			
 			
 		default :
-		  Error("Species ID %d not found in saturation_vapor_pressure function\n",iSpecies);
+			Error("Species ID not found in saturation_vapor_pressure function\n");
 			satVapPress = 0.0;
 	}
 	
@@ -242,7 +242,7 @@ real molecule_diameter(int iSpecies) {
 	
 	switch(iSpecies) {
 		case 0 :
-			d = 0.626e-9;
+			d = 0.527e-9;
 			break;
 			
 		case 1 :

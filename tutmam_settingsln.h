@@ -13,7 +13,7 @@
 
 	/* Number of particle modes. */
 	/* You must change it to correspond your case. */
-	#define nTutmamModes 2
+	#define nTutmamModes 1
 	
 	/* Number of particle phases. */
 	/* You must change it to correspond your case. */
@@ -40,10 +40,10 @@
 	/* Particle mass fraction vector used in initialization of the domain. */
 	/* You must change it to correspond your case. */
 	/* Separate vectors for different modes with , */
-	#define initialYSpeciesP {0.3,0.7},{0.3,0.7}
+	#define initialYSpeciesP 0.3,0.7
 	
 	/* ID of power law distribution */
-	#define powerLawDistribution 0
+	#define powerLawDistribution -1
 	
 	/* UDM id number for which number concentration (#/m^3) is saved */
 	#define iUdmNumberConc 0
@@ -114,16 +114,16 @@
 	/* You should change these to correspond your case. */
 	/* Number concentration (#/m^3) */
 	/* Separate values for different modes with , */
-	#define initialNumberConc 0.0e10,0.0e10
+	#define initialNumberConc 0.0e10
 	/* Count median diameter (m) */
-	#define initialCMD 1.5e-9,2.0e-9
+	#define initialCMD 2.0e-9
 	/* GSD */
-	#define initialGSD 1.1,1.2
+	#define initialGSD 1.2
 	
 	/* Particle density (kg/m^3) used in initialization of the domain. */
 	/* You should change it to correspond your case. */
 	/* Separate values for different modes with , */
-	#define initialRhoParticle 1200.0,1200.0
+	#define initialRhoParticle 1200.0
 	
 	/* Maximum particle temperature difference (K) */
 	/* You can change it to correspond your case. */
@@ -143,14 +143,14 @@
 	#define minAlpha -5.0
 	#define maxAlpha 5.0
 	#define powerLawD1 1.15e-9
-	#define maxD2 60.0e-9
+	#define maxD2 100.0e-9
 	
 	/* under-relaxation factor for power law distribution parameters */
 	#define uRFPowerLawParameters 0.99
 	
 	/* coagulation processes from mode to another mode */
 	/* Separate vectors for different modes with , */
-	#define coagulationFromModeToMode {1,1},{1,1}
+	#define coagulationFromModeToMode 1
 	
 	/* Wall condensation laws for vapors. */
 	/* No condensation (0), condensation only if saturation exceeded (1), activity based condensation (2), full condensation(3) */
@@ -188,6 +188,7 @@
 	extern real nucleationExponents[nTutmamSpecies];			/* vector for nucleation exponents in Olin nucleation law */
 	extern real nucleationSatVapPresExponents[nTutmamSpecies];	/* vector for nucleation saturation vapor pressure exponents in Olin nucleation law */
 	extern real nMolecClusterVector[nTutmamSpecies];			/* vector for number of molecules in a cluster formed by Olin nucleation law */
+	extern real clusterGSD;						/* GSD of the distribution formed by Olin nucleation law */
 	
 	extern real uRFCondensationM23;				/* under-relaxation factor for condensation to moment 2/3 */
 	extern real uRFCondensationM1[nTutmamSpecies];/* under-relaxation factor vector for condensation to moment 1 */
@@ -221,6 +222,7 @@
 	extern int transitionRegimeCorrectionFactorForCoagulationLaw; /* transition regime correction factor law for coagulation */
 	extern int coagulationRobustnessModel;		/* Is robustness model used in coagulation? */
 	
+	extern real uRFTransferPl2Ln;				/* under-relaxation factor for PL to LN transfer */
 	
 	
 	extern int lippu;

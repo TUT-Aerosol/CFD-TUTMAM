@@ -105,7 +105,7 @@ DEFINE_EXECUTE_ON_LOADING(tutmam_transfer_settings_automatically,tutmamudf)
 	tutmam_construct_settings_matrices();
 	
 #if RP_HOST || !PARALLEL
-	Message("\n************************************************************\n      TUT Modal Aerosol Model for CFD 1.0 libraries loaded      \n************************************************************\n");
+	Message("\n************************************************************\n      TUT Modal Aerosol Model for CFD 2.0 libraries loaded      \n************************************************************\n");
 #endif
   
 }

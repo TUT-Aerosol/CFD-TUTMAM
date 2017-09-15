@@ -14,7 +14,7 @@ real molarMassVector[] = { molarMasses };				/* a vector storing molar masses of
 int fluentSpeciesIdVector[] = { fluentSpeciesIds };		/* a vector storing IDs of particle species in Fluent */
 int tutmamSpeciesIdVector[] = { 0 };					/* a vector storing particle IDs of Fluent species */
 int phaseIdVector[] = { phaseIds };						/* a vector storing phase IDs of particle species */
-int phaseMatrix[nTutmamPhases][nTutmamSpecies] = {0};	/* a matrix storing particle species flags for specific phases */
+int phaseMatrix[nTutmamPhases][nTutmamSpecies] = {{0}};	/* a matrix storing particle species flags for specific phases */
 int coagulationMatrix[nTutmamModes][nTutmamModes] = { coagulationFromModeToMode };	/* a matrix storing coagulation flags for specific modes */
 int wallCondensationLawVector[nTutmamSpecies] = { wallCondensationLaws };	/* a vector storing wall condensation laws */;	/* a vector storing wall condensation laws */
 
@@ -45,6 +45,7 @@ int iNucleatingSpecies[] = { 0 };				/* vector for nucleating species in Olin nu
 real nucleationExponents[] = { 0.0 };			/* vector for nucleation exponents in Olin nucleation law */
 real nucleationSatVapPresExponents[] = { 0.0 };	/* vector for nucleation saturation vapor pressure exponents in Olin nucleation law */
 real nMolecClusterVector[] = { 0.0 };			/* vector for number of molecules in a cluster formed by Olin nucleation law */
+real clusterGSD = 1.01;					/* GSD of the distribution formed by Olin nucleation law */
 
 int latentHeatOfCondensation = 1;		/* Is latent heat of condensation considered? */
 int iCondensingSpecies[] = { 0 };		/* vector for condensing species flags */
@@ -75,5 +76,7 @@ int interModalCoagulationProcess = 1;	/* Is intermodal coagulation process on? *
 real uRFCoagulation = 0.5;				/* under-relaxation factor for coagulation */
 int transitionRegimeCorrectionFactorForCoagulationLaw = 2; /* transition regime correction factor law for coagulation */
 int coagulationRobustnessModel = 0;		/* Is robustness model used in coagulation? */
+
+real uRFTransferPl2Ln = 0.9;			/* under-relaxation factor for PL to LN transfer */
 
 int lippu = 2;

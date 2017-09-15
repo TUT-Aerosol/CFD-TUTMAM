@@ -153,7 +153,7 @@
 ) (cx-show-panel panel)    )))
 ;;
 ;;
-;;Aerosol process control panel
+;;Aerosol process control panel 
 ;;
 (if (not (rp-var-object 'diffusion_process_rp))(rp-var-define 'diffusion_process_rp #t 'boolean #f))
 (if (not (rp-var-object 'nucleation_process_rp))(rp-var-define 'nucleation_process_rp #f 'boolean #f))
@@ -164,9 +164,10 @@
 (if (not (rp-var-object 'coagulation_computing_rp))(rp-var-define 'coagulation_computing_rp #t 'boolean #f))
 (if (not (rp-var-object 'self_coagulational_transfer_process_rp))(rp-var-define 'self_coagulational_transfer_process_rp #f 'boolean #f))
 (if (not (rp-var-object 'inter_modal_condensation_process_rp))(rp-var-define 'inter_modal_condensation_process_rp #f 'boolean #f))
+(if (not (rp-var-object 'urf_transfer_pl2ln_rp))(rp-var-define 'urf_transfer_pl2ln_rp 0.9 'real #f))
 ;;
 (define  gui-processcontrol
-(let ((panel #f)(diffusionProcess)(nucleationProcess)(nucleationComputing)(condensationProcess)(condensationComputing)(coagulationProcess)(coagulationComputing)(selfCoagulationalTransferProcess)(interModalCondensationProcess))
+(let ((panel #f)(diffusionProcess)(nucleationProcess)(nucleationComputing)(condensationProcess)(condensationComputing)(coagulationProcess)(coagulationComputing)(selfCoagulationalTransferProcess)(interModalCondensationProcess)(uRFTransferPl2Ln))
 (define (update-cb . args)    
 (cx-set-toggle-button diffusionProcess (%rpgetvar 'diffusion_process_rp))     
 (cx-set-toggle-button nucleationProcess (%rpgetvar 'nucleation_process_rp))   
@@ -177,6 +178,7 @@
 (cx-set-toggle-button coagulationComputing (%rpgetvar 'coagulation_computing_rp))   
 (cx-set-toggle-button selfCoagulationalTransferProcess (%rpgetvar 'self_coagulational_transfer_process_rp))   
 (cx-set-toggle-button interModalCondensationProcess (%rpgetvar 'inter_modal_condensation_process_rp))   
+(cx-set-real-entry uRFTransferPl2Ln (%rpgetvar 'urf_transfer_pl2ln_rp))     
   )    
 (define (apply-cb . args)      
 (rpsetvar 'diffusion_process_rp (cx-show-toggle-button diffusionProcess)) 
@@ -188,6 +190,7 @@
 (rpsetvar 'coagulation_computing_rp (cx-show-toggle-button coagulationComputing)) 
 (rpsetvar 'self_coagulational_transfer_process_rp (cx-show-toggle-button selfCoagulationalTransferProcess)) 
 (rpsetvar 'inter_modal_condensation_process_rp (cx-show-toggle-button interModalCondensationProcess)) 
+(rpsetvar 'urf_transfer_pl2ln_rp (cx-show-real-entry uRFTransferPl2Ln)) 
 (%udf-on-demand "tutmam_transfer_settings_manually_aerosol_process_control::tutmamudf")
    )    
 (lambda args  
@@ -224,6 +227,7 @@
 (set! table2 (cx-create-table panel "Only if using power-law distribution" 'border #t 'below table 'right-of 0))
 (set! selfCoagulationalTransferProcess (cx-create-toggle-button table2 "Self-coagulational transfer" 'state #f 'row 1 'col 0 ))
 (set! interModalCondensationProcess (cx-create-toggle-button table2 "Intermodal condensation" 'state #f 'row 2 'col 0 ))
+(set! uRFTransferPl2Ln (cx-create-real-entry table2 "URF" 'width 14 'row 3 'col 0 ))
 (if (%rpgetvar 'nucleation_process_rp)
 	(cx-show-item nucleationComputing)
 	(cx-hide-item nucleationComputing)
@@ -319,9 +323,10 @@
 (if (not (rp-var-object 'nucleation_exponents_rp))(rp-var-define 'nucleation_exponents_rp "1,1" 'string #f))
 (if (not (rp-var-object 'nucleation_sat_vap_pres_exponents_rp))(rp-var-define 'nucleation_sat_vap_pres_exponents_rp "1,0" 'string #f))
 (if (not (rp-var-object 'n_molec_cluster_vector_rp))(rp-var-define 'n_molec_cluster_vector_rp "15,20" 'string #f))
+(if (not (rp-var-object 'cluster_gsd_rp))(rp-var-define 'cluster_gsd_rp 1.01 'real #f))
 ;;
 (define  gui-nucleation
-(let ((panel #f)(uRFNucleation)(nucleationCorrectionFactor)(nucleationLaw)(nucleatingSpecies)(nucleationExponents)(nucleationSatVapPresExponents)(nMolecClusterVector))
+(let ((panel #f)(uRFNucleation)(nucleationCorrectionFactor)(nucleationLaw)(nucleatingSpecies)(nucleationExponents)(nucleationSatVapPresExponents)(nMolecClusterVector)(clusterGSD))
 (define (update-cb . args)    
 (cx-set-real-entry uRFNucleation (%rpgetvar 'urf_nucleation_rp))        
 (cx-set-real-entry nucleationCorrectionFactor (%rpgetvar 'nucleation_correction_factor_rp))        
@@ -330,6 +335,7 @@
 (cx-set-text-entry nucleationExponents (%rpgetvar 'nucleation_exponents_rp))     
 (cx-set-text-entry nucleationSatVapPresExponents (%rpgetvar 'nucleation_sat_vap_pres_exponents_rp))     
 (cx-set-text-entry nMolecClusterVector (%rpgetvar 'n_molec_cluster_vector_rp)) 
+(cx-set-real-entry clusterGSD (%rpgetvar 'cluster_gsd_rp))    
   )    
 (define (apply-cb . args)      
 (rpsetvar 'urf_nucleation_rp (cx-show-real-entry uRFNucleation)) 
@@ -339,6 +345,7 @@
 (rpsetvar 'nucleation_exponents_rp (cx-show-text-entry nucleationExponents)) 
 (rpsetvar 'nucleation_sat_vap_pres_exponents_rp (cx-show-text-entry nucleationSatVapPresExponents)) 
 (rpsetvar 'n_molec_cluster_vector_rp (cx-show-text-entry nMolecClusterVector)) 
+(rpsetvar 'cluster_gsd_rp (cx-show-real-entry clusterGSD)) 
 (%udf-on-demand "tutmam_transfer_settings_manually_nucleation::tutmamudf")
    )    
 (lambda args  
@@ -361,6 +368,7 @@
 (set! nucleationExponents (cx-create-text-entry table2 "Nucleation exponents" 'width 14 'row 5 'col 0 ))
 (set! nucleationSatVapPresExponents (cx-create-text-entry table2 "Nucleation sat. vap. pres. exponents" 'width 14 'row 6 'col 0 ))
 (set! nMolecClusterVector (cx-create-text-entry table2 "Number of molecules in a cluster" 'width 14 'row 7 'col 0 ))
+(set! clusterGSD (cx-create-real-entry table2 "GSD" 'width 14 'row 7 'col 1 ))
 (if (= (%rpgetvar 'nucleation_law_rp) 2)
 	(cx-show-item table2)
 	(cx-hide-item table2)
@@ -543,7 +551,7 @@
 ;;
 (display "************************************************************")
 (newline)
-(display "      TUT Modal Aerosol Model for CFD 1.0 menus loaded      ")
+(display "      TUT Modal Aerosol Model for CFD 2.0 menus loaded      ")
 (newline)
 (display "************************************************************")
 (newline)

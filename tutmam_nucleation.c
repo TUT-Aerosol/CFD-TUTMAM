@@ -310,7 +310,7 @@ void nucleation_rate_olin(real *sourceTerm, cell_t c, Thread *t) {
 	}
 	
 	/* 0.667th moment calculated from the total mass */
-	sCluster = pow(mCluster,TUTMAM_23);
+	sCluster = pow(mCluster,TUTMAM_23)/exp(SQR(log(clusterGSD)));
 	sourceTerm[1]=J*sCluster;
 	
 	return;
@@ -318,7 +318,7 @@ void nucleation_rate_olin(real *sourceTerm, cell_t c, Thread *t) {
 
 /* Calculating nucleation rate source terms and storing them to sourceTerm vector */
 void calculate_nucleation_rate(real *sourceTerm, cell_t c, Thread *t) {
-
+	
 	if (nucleationLaw == 1) {
 		nucleation_rate_vehkamaki(sourceTerm,c,t);
 		

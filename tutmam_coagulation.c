@@ -198,7 +198,7 @@ void calculate_intra_coagulation_rate(real *sourceTerm, cell_t c, Thread *t, int
 			integralN2 = 0.0;
 			integralS2 = 0.0;
 			
-			for (iIntegral2 = 0; iIntegral2 < 4; ++iIntegral2) {
+			for (iIntegral2 = 0; iIntegral2 < gaussHermiteLevel; ++iIntegral2) {
 				x2 = gauss_hermite_abscissas(iIntegral2); /* x-variable is defined by Gauss-Hermite quadrature */
 				dp2 = D2*exp(x2*sqrt(2*alpha)); /* converting x back to dp */
 				mParticle2 = TUTMAM_PI6*rhoP*CBC(dp2);
@@ -239,7 +239,7 @@ void use_robustness_coagulation_model(real *sourceTerm, cell_t c, Thread *t, int
 	real ntot;
 	real stot;
 	
-	if (coagulationRobustnessModel == 0 || powerLawDistribution >= 0) {
+	if (coagulationRobustnessModel == 0) {
 		return;
 	}
 	

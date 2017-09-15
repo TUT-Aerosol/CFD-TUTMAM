@@ -14,11 +14,11 @@
 	real fuchs_sutugin_for_heat(real dp, real temp, real pressure);
 	
 	/* Fuchs-Sutugin correction for mass transfer of a particle (Fuchs & Sutugin, 1970) */
-	real fuchs_sutugin_for_mass(real dp, real temp, real pressure, real iSpecies, real diffCoeffGas, real diffCoeffParticle, real dMolecule, real mParticle);
+	real fuchs_sutugin_for_mass(real dp, real temp, real pressure, real iSpecies, real diffCoeffGas, real diffCoeffGasDry, real diffCoeffParticle, real dMolecule, real mParticle);
 	
 	/* Knudsen number for mass transfer of species iSpecies */
 	/* Single-component approximation for mean free path */
-	real knudsen_number_for_mass(real dp, real temp, real pressure, int iSpecies, real diffCoeffGas, real diffCoeffParticle, real dMolecule, real mParticle);
+	real knudsen_number_for_mass(real dp, real temp, real pressure, int iSpecies, real diffCoeffGas, real diffCoeffGasDry, real diffCoeffParticle, real dMolecule, real mParticle);
 			
 	/* Single particle mass growth rate of species iSpecies (size-independent part) (s^2/m^2) */
 	real mass_growth_rate_indep(real temp, int iSpecies);

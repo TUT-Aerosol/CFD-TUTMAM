@@ -13,9 +13,15 @@
 	/* Calculating self-coagulational rate source terms and storing them to sourceTerm vector */
 	void calculate_self_coagulational_transfer_rate(real *sourceTerm, cell_t c, Thread *t);
 	
+	/* Use robustness coagulation model to coagulational transfer */
+	void use_robustness_coagulation_model_transfer(real *sourceTerm, cell_t c, Thread *t);
+	
 	/* Calculating intramodal condensation rate source terms and adding them to sourceTerm vector */
 	void calculate_inter_modal_condensation_rate(real *sourceTerm, cell_t c, Thread *t);
 	
+	/* Making under-relaxation to sourceTerm vector */
+	void under_relax_transfer_pl2ln_rate(real *sourceTerm, real uRFTransferPl2Ln, cell_t c, Thread *t);
+
 	/* Storing transfer rate source terms to UDMs */
 	void store_transfer_rate(real *sourceTerm, cell_t c, Thread *t);
 	

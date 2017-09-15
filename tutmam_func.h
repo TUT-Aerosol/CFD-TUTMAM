@@ -181,7 +181,7 @@
 	void message_URF_vector(real *vector);
 	
 	/* prints a message of Olin nucleation law parameters */
-	void message_Olin_nucleation_parameters_vector(int *iNucleatingSpeciesVector, real *nucleationExponentsVector, real *nucleationSatVapPresExponentsVector, real *nMolecClusterVectorVector);
+	void message_Olin_nucleation_parameters_vector(int *iNucleatingSpeciesVector, real *nucleationExponentsVector, real *nucleationSatVapPresExponentsVector, real *nMolecClusterVectorVector, real clusterGSDValue);
 	
 	/* This function saves the particle distribution parameters to UDMs. */
 	/* This is called after each iteration. */

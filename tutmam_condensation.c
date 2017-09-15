@@ -22,22 +22,26 @@ real fuchs_sutugin_for_heat(real dp, real temp, real pressure) {
 }
 
 /* Fuchs-Sutugin correction for mass transfer of a particle (Fuchs & Sutugin, 1970) */
-real fuchs_sutugin_for_mass(real dp, real temp, real pressure, real iSpecies, real diffCoeffGas, real diffCoeffParticle, real dMolecule, real mParticle) {
+real fuchs_sutugin_for_mass(real dp, real temp, real pressure, real iSpecies, real diffCoeffGas, real diffCoeffGasDry, real diffCoeffParticle, real dMolecule, real mParticle) {
 	real kn = 1.0;	/* knudsen number */
+	real a = 1.0;
 
-	kn = knudsen_number_for_mass(dp,temp,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
-	return (1.0+kn)/(1.333*kn*kn + 1.71*kn + 1.0);
+	kn = knudsen_number_for_mass(dp,temp,pressure,iSpecies,diffCoeffGas,diffCoeffGasDry,diffCoeffParticle,dMolecule,mParticle);
+	return a*(1.0+kn)/(1.333*kn*kn + (1.33+0.377*a)*kn + a);
 }
 
 /* Knudsen number for mass transfer of species iSpecies */
 /* Single-component approximation for mean free path */
-real knudsen_number_for_mass(real dp, real temp, real pressure, int iSpecies, real diffCoeffGas, real diffCoeffParticle, real dMolecule, real mParticle) {
+real knudsen_number_for_mass(real dp, real temp, real pressure, int iSpecies, real diffCoeffGas, real diffCoeffGasDry, real diffCoeffParticle, real dMolecule, real mParticle) {
 	real M;					/* molar mass of species iSpecies (kg/mol) */
 	real Mp;				/* molar mass of particle (kg/mol) */
+	real humidityCorrection;
+	
 	M = molarMassVector[iSpecies];
 	Mp = mParticle*TUTMAM_AVOGADRO;
+	humidityCorrection = diffCoeffGasDry/diffCoeffGas;
 	
-	return 1.303959714852510*(diffCoeffGas+diffCoeffParticle)/((dp+dMolecule)*sqrt(temp*(1.0/M+1.0/Mp)));
+	return 1.303959714852510*(diffCoeffGas+diffCoeffParticle)/((dp+dMolecule)*sqrt(temp*(1.0/(SQR(humidityCorrection)*M)+1.0/Mp)));
 }
 
 /* Single particle mass growth rate of species iSpecies (size-independent part) (s^2/m^2) */
@@ -52,7 +56,16 @@ real mass_growth_rate_indep(real temp, int iSpecies) {
 
 /* Single particle mass growth rate of species iSpecies (size-dependent part) (kg m^2/s^3) */
 real mass_growth_rate_dep(real dp, real fuchsSutuginForMass, real dMolecule, real diffCoeffGas, real diffCoeffParticle, real moleFractionInFluid, real moleFractionInPhase, real actCoeff, real saturationVaporPressure, real pressure, real kelvinFactor) {
-	return (dp+dMolecule)*fuchsSutuginForMass*(diffCoeffGas+diffCoeffParticle)*(moleFractionInFluid*pressure - moleFractionInPhase*actCoeff*kelvinFactor*saturationVaporPressure);
+	real rate;
+	real pp;
+	real stefan = 1.0;
+		
+	pp = moleFractionInPhase*actCoeff*kelvinFactor*saturationVaporPressure;
+	rate = (dp+dMolecule)*fuchsSutuginForMass*(diffCoeffGas+diffCoeffParticle)*(moleFractionInFluid*pressure - pp);
+	
+	stefan = 1.0 + 0.5*moleFractionInFluid + 0.5*pp/pressure; /* stefan */
+	
+	return rate*stefan;
 }
 
 /* Kelvin diameter (m) */
@@ -68,6 +81,7 @@ real kelvin_diameter(real temp, int iSpecies, int j, const real *moleFractionsIn
 	rhoLiquid = particle_phase_density(temp,ph,massFractionsInPhase);
 	
 	kelvinDiameter = (4*surfaceTension*M)/(TUTMAM_R*temp*rhoLiquid);
+
 	
 	return kelvinDiameter;
 }
@@ -101,6 +115,7 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 	real quadratureFactor;
 	
 	real diffCoeffGas;			/* laminar diffusion coefficient of gas iSpecies (m^2/s) */
+	real diffCoeffGasDry;		/* laminar diffusion coefficient of dry gas iSpecies (m^2/s) */
 	int iFluentSpecies;			/* ID for iSpecies in Fluent */
 	real diffCoeffParticleIndep;/* diffusion coefficient of particle: size-independent part (m^3/s) */
 	real diffCoeffParticleDep;	/* diffusion coefficient of particle: size-dependent part (1/m) */
@@ -114,7 +129,7 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 	int iSpeciesWater = -1;
 	real kappa = 0.0;
 	real condensationMultiplier = 0.0;
-	real relativeHumidity;
+	real relativeHumidity = 0.5;
 	
 	real moleFractionsInPhase[nTutmamSpecies];	/* mole fractions of all species in a phase */
 	real massFractionsInPhase[nTutmamSpecies];	/* mass fractions of all species in a phase */
@@ -206,6 +221,7 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 				dMolecule = molecule_diameter(iSpecies);
 				iFluentSpecies = fluentSpeciesIdVector[iSpecies];
 				diffCoeffGas = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies,relativeHumidity);
+				diffCoeffGasDry = diffusion_coefficient_gas(tempFluid,pressure,iFluentSpecies,0.0);
 				
 				actCoeff = activity_coefficient(tempParticle,iSpecies,moleFractionsInPhase);
 				
@@ -242,10 +258,10 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 							diffCoeffParticle = diffCoeffParticleDep*diffCoeffParticleIndep;
 							
 							if (kelvinEffect == 1) {
-								kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,50.0));
+								kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,10.0));
 							}
 							
-							fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
+							fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffGasDry,diffCoeffParticle,dMolecule,mParticle);
 							
 							massGrowthRateDep = mass_growth_rate_dep(dp,fuchsSutuginForMass,dMolecule,diffCoeffGas,diffCoeffParticle,moleFractionInFluid,moleFractionsInPhase[iSpecies],phaseActivity*actCoeff,saturationVaporPressure,pressure,kelvinFactor);
 							if (condensationDirectionVector[iSpecies] == 1) {
@@ -268,10 +284,10 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 							diffCoeffParticle = diffCoeffParticleDep*diffCoeffParticleIndep;
 							
 							if (kelvinEffect == 1) {
-								kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,50.0));
+								kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,10.0));
 							}
 							
-							fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
+							fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffGasDry,diffCoeffParticle,dMolecule,mParticle);
 							
 							massGrowthRateDep = mass_growth_rate_dep(dp,fuchsSutuginForMass,dMolecule,diffCoeffGas,diffCoeffParticle,moleFractionInFluid,moleFractionsInPhase[iSpecies],phaseActivity*actCoeff,saturationVaporPressure,pressure,kelvinFactor);
 							if (condensationDirectionVector[iSpecies] == 1) {
@@ -298,10 +314,10 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 						diffCoeffParticle = diffCoeffParticleDep*diffCoeffParticleIndep;
 						
 						if (kelvinEffect == 1) {
-							kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,50.0));
+						  kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,10.0));
 						}
 						
-						fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffParticle,dMolecule,mParticle);
+						fuchsSutuginForMass = fuchs_sutugin_for_mass(dp,tempFluid,pressure,iSpecies,diffCoeffGas,diffCoeffGasDry,diffCoeffParticle,dMolecule,mParticle);
 						
 						massGrowthRateDep = mass_growth_rate_dep(dp,fuchsSutuginForMass,dMolecule,diffCoeffGas,diffCoeffParticle,moleFractionInFluid,moleFractionsInPhase[iSpecies],phaseActivity*actCoeff,saturationVaporPressure,pressure,kelvinFactor);
 						
@@ -323,10 +339,17 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 									
 				/* storing sourceTerms for 1st moments */
 				sourceTerm[1+iSpecies] = C_NTOT(c,t,j)*massGrowthRateIndep*integralM1*quadratureFactor; /* (kg/m^3 s) */
+				if (C_UDS_M1(c,t,iSpecies,j)<0.0 || cmd<1.5e-9){
+				  sourceTerm[1+iSpecies]=tutmam_positive(sourceTerm[1+iSpecies]);
+				}
 				
 				if (waterEq == 1 && iSpecies == waterEqSpecies && iCondensingSpecies[j*nTutmamSpecies+iSpeciesWater] == 1) { /* if species that is connected to water-equilibrium calculation */
 					/* storing sourceTerms for water */
 					sourceTerm[1+iSpeciesWater] = kappa*condensationMultiplier*sourceTerm[1+iSpecies];
+
+				if (C_UDS_M1(c,t,iSpeciesWater,j)<0.0 || cmd<1.5e-9){
+				  sourceTerm[1+iSpeciesWater]=tutmam_positive(sourceTerm[1+iSpeciesWater]);
+				}
 					
 					/* addind water part to sumOverSpecies */
 					sumOverSpecies += kappa*condensationMultiplier*integral;
@@ -336,7 +359,11 @@ void calculate_condensation_rate(real *sourceTerm, cell_t c, Thread *t, int j) {
 	}
 	
 	/* storing sourceTerm for 0.667th moment */
+	
 	sourceTerm[0] = C_NTOT(c,t,j)*TUTMAM_23PI6M13*sumOverSpecies*pow(rhoP,-TUTMAM_13)*quadratureFactor; /* (kg^(2/3)/m^3 s) */
+					if (C_UDS_M23(c,t,j)<0.0 || cmd<1.5e-9){
+				  sourceTerm[0]=tutmam_positive(sourceTerm[0]);
+				}
 
 	return;
 }
@@ -470,6 +497,7 @@ real rh_eq(cell_t c, Thread *t, int iSpeciesWater, int j, const real *M1, real n
 	real rhoP;					/* particle density (kg/m^3) */
 	real moleFractionsInPhase[nTutmamSpecies] = { 0.0 };	/* mole fractions of all species in a phase */
 	real massFractionsInPhase[nTutmamSpecies] = { 0.0 };	/* mass fractions of all species in a phase */
+
 	
 	/* find the phase ID */
 	ph = phaseIdVector[iSpeciesWater];
@@ -509,11 +537,7 @@ real rh_eq(cell_t c, Thread *t, int iSpeciesWater, int j, const real *M1, real n
 	} else {
 		dp = tutmam_limits(minCMD,dp,maxCMD);
 	}
-	
-	if (powerLawDistribution < 0) { /* if log-normal distribution only */
-		dp = tutmam_limits(minCMD,dp*exp(-1.5*ln2s),maxCMD); /* cmd */
-	}
-	
+		
 	/* calculate mole and mass fractions */
 	for (iSpecies = 0; iSpecies < nTutmamSpecies; ++iSpecies) {
 		if (phaseIdVector[iSpecies] == ph) {
@@ -528,14 +552,17 @@ real rh_eq(cell_t c, Thread *t, int iSpeciesWater, int j, const real *M1, real n
 	
 	if (kelvinEffect == 1) {
 		kelvinDiameter = kelvin_diameter(temp,iSpeciesWater,j,moleFractionsInPhase,massFractionsInPhase);
-		kelvinFactor = exp(kelvinDiameter/dp);
+		kelvinFactor = exp(tutmam_upper_limit(kelvinDiameter/dp,10.0));
 	}
 	
 	actCoeff = activity_coefficient(temp,iSpeciesWater,moleFractionsInPhase);
 	
 	rhEq = moleFractionsInPhase[iSpeciesWater]*phaseActivity*actCoeff*kelvinFactor;
-	C_UDMI(c,t,iRhEqPerRhUdm+j*nUdmPerMode) = rhEq/tutmam_lower_limit(tutmam_rh(c,t,iSpeciesWater),1.0e-9);
 	
+
+
+	
+
 	return rhEq;
 }
 
@@ -594,9 +621,11 @@ real water_kappa(cell_t c, Thread *t, int j) {
 	if (M1Total < minMassConc || M1Water_0 < minMassConc) { /* too low mass */
 		return 1.0;
 	}
-	
+
 	rh = tutmam_rh(c,t,iSpeciesWater); /* fluid rh */
 	rhEq_0 = rh_eq(c,t,iSpeciesWater,j,M1,ntot,ln2s); /* rheq */
+
+	C_UDMI(c,t,iRhEqPerRhUdm+j*nUdmPerMode) = rhEq_0/tutmam_lower_limit(rh,1.0e-9);
 	
 	rhEq = rhEq_0;
 	M1Water = M1Water_0;
@@ -614,17 +643,22 @@ real water_kappa(cell_t c, Thread *t, int j) {
 		C1 = M1Water/M1Water_0;
 		kappa_0 = C_WATER_KAPPA(c,t,j);
 		
-		if (C1 >= 1.0 || condensationDirectionVector[iSpeciesWater] == 1) {
+
 			if (kappa_0 < 0.0) {
-				kappa = tutmam_limits(0.0,0.01*C1,maxKappa);
+			  if (C1>1.0 && kappa_0>-0.00001) {
+			    kappa=0.0-kappa_0;
+			  } else {
+				kappa = ((1.0-uRFKappa)*kappa_0 + uRFKappa*tutmam_limits(minKappa,kappa_0/C1,maxKappa)); /* under-relaxation */
+			  }
 				
 			} else {
-				kappa = ((1.0-uRFKappa)*kappa_0 + uRFKappa*tutmam_limits(0.0,kappa_0*C1,maxKappa)); /* under-relaxation */
+			  if (C1<1.0 && kappa_0<0.00001) {
+			    kappa=0.0-kappa_0;
+			  } else {
+				kappa = ((1.0-uRFKappa)*kappa_0 + uRFKappa*tutmam_limits(minKappa,kappa_0*C1,maxKappa)); /* under-relaxation */
+			  }
 			}
-			
-		} else {
-			kappa = ((1.0-uRFKappa)*kappa_0 + uRFKappa*tutmam_limits(minKappa,kappa_0-1.0/C1,maxKappa)); /* under-relaxation */
-		}
+		
 				
 	} else {
 		kappa = C_WATER_KAPPA(c,t,j);
@@ -667,7 +701,7 @@ real condensation_multiplier(cell_t c, Thread *t, int j) {
 
 	/* calculate dp */
 	if (powerLawDistribution < 0) { /* if log-normal distribution only */
-		dp = C_CMD(c,t,j); /* cmd */
+		dp = C_CMD(c,t,j)*exp(1.5*C_LN2S(c,t,j)); /* cmd */
 		
 	} else {
 		for (iSpecies = 0; iSpecies < nTutmamSpecies; ++iSpecies) {

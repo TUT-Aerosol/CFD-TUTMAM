@@ -143,7 +143,7 @@
 	#define minAlpha -5.0
 	#define maxAlpha 5.0
 	#define powerLawD1 1.15e-9
-	#define maxD2 60.0e-9
+	#define maxD2 100.0e-9
 	
 	/* under-relaxation factor for power law distribution parameters */
 	#define uRFPowerLawParameters 0.99
@@ -188,6 +188,7 @@
 	extern real nucleationExponents[nTutmamSpecies];			/* vector for nucleation exponents in Olin nucleation law */
 	extern real nucleationSatVapPresExponents[nTutmamSpecies];	/* vector for nucleation saturation vapor pressure exponents in Olin nucleation law */
 	extern real nMolecClusterVector[nTutmamSpecies];			/* vector for number of molecules in a cluster formed by Olin nucleation law */
+	extern real clusterGSD;						/* GSD of the distribution formed by Olin nucleation law */
 	
 	extern real uRFCondensationM23;				/* under-relaxation factor for condensation to moment 2/3 */
 	extern real uRFCondensationM1[nTutmamSpecies];/* under-relaxation factor vector for condensation to moment 1 */
@@ -221,6 +222,7 @@
 	extern int transitionRegimeCorrectionFactorForCoagulationLaw; /* transition regime correction factor law for coagulation */
 	extern int coagulationRobustnessModel;		/* Is robustness model used in coagulation? */
 	
+	extern real uRFTransferPl2Ln;				/* under-relaxation factor for PL to LN transfer */
 	
 	
 	extern int lippu;

@@ -143,8 +143,8 @@ void iterateAlphaAndD(real *alphaAndD, real *AAndB, real *alphaAndDGuess) {
 	
 	/* A and B are now defined with these values */
 	if (AAndB[0] > AAndB[1] || AAndB[0] < 1.0 || AAndB[1] < 1.0) {
-		alphaAndD[0] = initialAlpha[powerLawDistribution];
-		alphaAndD[1] = 1.0;
+		alphaAndD[0] = 0.0;
+		alphaAndD[1] = pow(AAndB[0],1.3483146);
 		return;
 	}
 	

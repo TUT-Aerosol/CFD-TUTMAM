@@ -242,7 +242,7 @@ real molecule_diameter(int iSpecies) {
 	
 	switch(iSpecies) {
 		case 0 :
-			d = 0.626e-9;
+			d = 0.527e-9;
 			break;
 			
 		case 1 :

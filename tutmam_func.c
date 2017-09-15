@@ -865,7 +865,6 @@ void calculateJAAndB(real *JAAndB, real *alphaAndD) {
 /* Calculates alpha from moment concentrations. */
 void calculateAlphaAndD2(real *alphaAndD2, real numberConc, real surfaceConc, real massConc, real rhoParticle, real *alphaAndDGuess) {
 	real AAndB[2];
-	real m1m13;
 	real alphaAndD[2];
 	
 	if (numberConc < minNumberConc) { /* (#/m^3) */
@@ -1229,12 +1228,18 @@ void tutmam_transfer_settings_nucleation() {
 	string_to_vector(nucleationSatVapPresExponentsString,nucleationSatVapPresExponents);
 	string_to_vector(nMolecClusterVectorString,nMolecClusterVector);
 	
+	clusterGSD = RP_Get_Real("cluster_gsd_rp");
+	if (clusterGSD < 1.0) {
+		Message("Cluster distr. GSD must be larger than 1. Value set to 1\n");
+		clusterGSD = 1.0;
+	}
+	
 	Message("URF for nucleation:                          %g\n",uRFNucleation);
 	Message("Nucleation law ID number:                    %d\n",nucleationLaw);
 	Message("Nucleation correction factor:                %g\n",nucleationCorrectionFactor);
 	
 	if (nucleationLaw == 2) {
-		message_Olin_nucleation_parameters_vector(iNucleatingSpecies,nucleationExponents,nucleationSatVapPresExponents,nMolecClusterVector);
+		message_Olin_nucleation_parameters_vector(iNucleatingSpecies,nucleationExponents,nucleationSatVapPresExponents,nMolecClusterVector,clusterGSD);
 	}
 	
 #endif
@@ -1242,7 +1247,7 @@ void tutmam_transfer_settings_nucleation() {
 #if PARALLEL /* parallel solver */
 
 	/* setting the C-code variables from host process to node processes */
-	host_to_node_real_2(uRFNucleation,nucleationCorrectionFactor);
+	host_to_node_real_3(uRFNucleation,nucleationCorrectionFactor,clusterGSD);
 	host_to_node_int_1(nucleationLaw);
 	host_to_node_int(iNucleatingSpecies,nTutmamSpecies);
 	host_to_node_real(nucleationExponents,nTutmamSpecies);
@@ -1354,6 +1359,7 @@ void tutmam_transfer_settings_aerosol_process_control() {
 	coagulationComputing = RP_Get_Boolean("coagulation_computing_rp");
 	selfCoagulationalTransferProcess = RP_Get_Boolean("self_coagulational_transfer_process_rp");
 	interModalCondensationProcess = RP_Get_Boolean("inter_modal_condensation_process_rp");
+	uRFTransferPl2Ln = RP_Get_Real("urf_transfer_pl2ln_rp");
 	
 	Message("Diffusion    process:    %d\n",diffusionProcess);
 	
@@ -1380,6 +1386,7 @@ void tutmam_transfer_settings_aerosol_process_control() {
 			Message("Transfer processes from PL to LN:\n");
 			Message("  self-coagulation:        %d\n",selfCoagulationalTransferProcess);
 			Message("  intermodal condensation: %d\n",interModalCondensationProcess);
+			Message("  URF:                     %g\n",uRFTransferPl2Ln);
 		#endif
 	#endif
 	
@@ -1390,6 +1397,7 @@ void tutmam_transfer_settings_aerosol_process_control() {
 	/* setting the C-code variables from host process to node processes */
 	host_to_node_int_7(diffusionProcess,nucleationProcess,nucleationComputing,condensationProcess,condensationComputing,coagulationProcess,coagulationComputing);
 	host_to_node_int_2(selfCoagulationalTransferProcess,interModalCondensationProcess);
+	host_to_node_real_1(uRFTransferPl2Ln);
 	
 #endif
 
@@ -1682,7 +1690,7 @@ void message_URF_vector(real *vector) {
 }
 
 /* prints a message of Olin nucleation law parameters */
-void message_Olin_nucleation_parameters_vector(int *iNucleatingSpeciesVector, real *nucleationExponentsVector, real *nucleationSatVapPresExponentsVector, real *nMolecClusterVectorVector) {
+void message_Olin_nucleation_parameters_vector(int *iNucleatingSpeciesVector, real *nucleationExponentsVector, real *nucleationSatVapPresExponentsVector, real *nMolecClusterVectorVector, real clusterGSDValue) {
 	int i;							/* index in for-loop */
 	char *speciesName;
 	Domain *domain = NULL;
@@ -1726,7 +1734,7 @@ void message_Olin_nucleation_parameters_vector(int *iNucleatingSpeciesVector, re
 			Message("%g      ",nMolecClusterVectorVector[i]);
 		}
 	}
-	Message("\n");
+	Message("with GSD of %g\n",clusterGSDValue);
 
 	Message("\n");
 
