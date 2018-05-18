@@ -275,11 +275,11 @@ real particle_temperature(cell_t c, Thread *t, int j) {
 	return tempParticle;
 }
 
-/* mean free path of air (m) (Willeke 1976, J. Aerosol Sci. 7, 381-387) */
+/* mean free path of air (m) (Kim et al. 2005) */
 real gas_mean_free_path(real temp, real pressure) {
 	real su = 110.4; 			/* Sutherland constant for air (K) */
-	real temp_r = 293.15;		/* Reference temperature (K) */
-	real l_r = 66.5e-9;			/* Mean free path in reference temperature (m) */
+	real temp_r = 296.15;		/* Reference temperature (K) */
+	real l_r = 67.3e-9;			/* Mean free path in reference temperature (m) */
 	real p_0 = 101325.0;		/* atmospheric pressure (Pa) */
 	
 	return p_0/pressure*l_r*temp/temp_r*(1.0+su/temp_r)/(1.0+su/temp);
@@ -292,7 +292,7 @@ real knudsen_number(real dp, real temp, real pressure) {
 	return 2*lambda/dp;
 }
 
-/* particle slip correction coefficent (Allen & Raabe 1985, Aerosol Sci. Technol. 4, 269-286) */
+/* particle slip correction coefficent (Kim et al. 2005) */
 real slip_correction_coefficient(real temp, real dp, real pressure) {
 	real lambda; 	/* gas mean free path (m) */
 	real lambdaDp;	/* lambda/dp */
@@ -305,7 +305,7 @@ real slip_correction_coefficient(real temp, real dp, real pressure) {
 	lambda = gas_mean_free_path(temp,pressure);
 	lambdaDp = lambda/dp;
 	
-	return 1+lambdaDp*(2.34+1.05*exp(-0.39/lambdaDp));
+	return 1.0+lambdaDp*(2.33+0.966*exp(-0.4985/lambdaDp));
 }
 
 /* limits value to lowerLimit */
